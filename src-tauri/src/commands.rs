@@ -1,10 +1,11 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
 use serde::{Deserialize, Serialize};
-use sqlx::{SqlitePool, Row};
+use sqlx::{SqlitePool, FromRow, query_as};
 use tauri::State;
+use log::{error};
 
-#[derive(Serialize, Deserialize)]
+#[derive(FromRow, Serialize, Deserialize, Debug, Clone)]
 pub struct Note {
     pub id: i64,
     pub title: String,
@@ -14,20 +15,7 @@ pub struct Note {
     pub updated_at: String,
 }
 
-impl From<sqlx::sqlite::SqliteRow> for Note {
-    fn from(row: sqlx::sqlite::SqliteRow) -> Self {
-        Note {
-            id: row.try_get("id").unwrap(),
-            title: row.try_get("title").unwrap(),
-            content: row.try_get("content").unwrap(),
-            tab_id: row.try_get("tab_id").ok(),
-            created_at: row.try_get("created_at").unwrap(),
-            updated_at: row.try_get("updated_at").unwrap(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(FromRow, Serialize, Deserialize, Debug, Clone)]
 pub struct Tab {
     pub id: i64,
     pub name: String,
@@ -35,76 +23,82 @@ pub struct Tab {
     pub updated_at: String,
 }
 
-impl From<sqlx::sqlite::SqliteRow> for Tab {
-    fn from(row: sqlx::sqlite::SqliteRow) -> Self {
-        Tab {
-            id: row.try_get("id").unwrap(),
-            name: row.try_get("name").unwrap(),
-            created_at: row.try_get("created_at").unwrap(),
-            updated_at: row.try_get("updated_at").unwrap(),
-        }
-    }
-}
-
 #[tauri::command]
 pub async fn get_notes(
     pool: State<'_, SqlitePool>,
     tab_id: Option<i64>,
 ) -> Result<Vec<Note>, String> {
-    let query = if let Some(tid) = tab_id {
-        sqlx::query("SELECT * FROM notes WHERE tab_id = ? ORDER BY updated_at DESC").bind(tid)
-    } else {
-        sqlx::query("SELECT * FROM notes WHERE tab_id IS NULL ORDER BY updated_at DESC")
-    };
+    let notes = query_as::<_, Note>(
+        r#"
+        SELECT * FROM notes
+        WHERE tab_id IS NOT DISTINCT FROM ?
+        ORDER BY updated_at DESC
+        "#
+    )
+    .bind(tab_id)
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Failed to fetch notes (tab_id = {:?}): {:#}", tab_id, e);
+        "Failed to load notes. Please try again.".to_string()
+    })?;
 
-    let rows = query
-        .fetch_all(&*pool)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let notes = rows.into_iter().map(Note::from).collect();
     Ok(notes)
 }
 
 #[tauri::command]
 pub async fn create_note(
     pool: State<'_, SqlitePool>,
-    title: &str,
-    content: &str,
+    title: String,
+    content: String,
     tab_id: Option<i64>,
 ) -> Result<Note, String> {
-    let query = sqlx::query(
-        "INSERT INTO notes (title, content, tab_id) VALUES (?, ?, ?)
-        RETURNING id, title, content, tab_id, created_at, updated_at"
+
+    let note = query_as::<_, Note>(
+        r#"
+        INSERT INTO notes (title, content, tab_id)
+        VALUES (?, ?, ?)
+        RETURNING id, title, content, tab_id, created_at, updated_at
+        "#
     )
-    .bind(title)
+    .bind(&title)
     .bind(content)
-    .bind(tab_id);
+    .bind(tab_id)
+    .fetch_one(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Failed to create note {}: {:#}", title, e);
+        "Failed to create note. Please try again".to_string()
+    })?;
 
-    let row = query
-        .fetch_one(&*pool)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(Note::from(row))
+    Ok(note)
 }
 
 #[tauri::command]
 pub async fn update_note(
     pool: State<'_, SqlitePool>,
     id: i64,
-    title: &str,
-    content: &str,
+    title: String,
+    content: String,
 ) -> Result<(), String> {
     sqlx::query(
-        "UPDATE notes SET title = ?, content = ?, updated_at = datetime('now') WHERE id = ?"
+        r#"
+        UPDATE notes
+        SET title = ?,
+            content = ?,
+            updated_at = datetime('now')
+        WHERE id = ?
+        "#
     )
     .bind(title)
     .bind(content)
     .bind(id)
     .execute(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        error!("Failed to update note {}: {:#}", id, e);
+        "Failed to update note. Please try again".to_string()
+    })?;
 
     Ok(())
 }
@@ -114,11 +108,18 @@ pub async fn delete_note(
     pool: State<'_, SqlitePool>,
     id: i64,
 ) -> Result<(), String> {
-    sqlx::query("DELETE FROM notes WHERE id = ?")
+    let result = sqlx::query("DELETE FROM notes WHERE id = ?")
         .bind(id)
         .execute(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            error!("Failed to delete note {}: {:#}", id, e);
+            "Failed to delete note. Please try again".to_string()
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(format!("Note with id {id} not found"))
+    }
 
     Ok(())
 }
@@ -127,46 +128,68 @@ pub async fn delete_note(
 pub async fn get_tabs(
     pool: State<'_, SqlitePool>,
 ) -> Result<Vec<Tab>, String> {
-    let rows = sqlx::query("SELECT * FROM tabs ORDER BY id ASC")
-        .fetch_all(&*pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let tabs = query_as::<_, Tab>(
+        r#"
+        SELECT * FROM tabs
+        ORDER BY id ASC
+        "#
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Failed to fetch tabs: {:#}", e);
+        "Failed to fetch tabs. Please try again".to_string()
+    })?;
 
-    let tabs = rows.into_iter().map(Tab::from).collect();
     Ok(tabs)
 }
 
 #[tauri::command]
 pub async fn create_tab(
     pool: State<'_, SqlitePool>,
-    name: &str,
+    name: String,
 ) -> Result<Tab, String> {
-    let row = sqlx::query(
-        "INSERT INTO tabs (name) VALUES (?)
-        RETURNING id, name, created_at, updated_at"
+
+    let tab = query_as::<_, Tab>(
+        r#"
+        INSERT INTO tabs (name)
+        VALUES (?)
+        RETURNING id, name, created_at, updated_at
+        "#
     )
-    .bind(name)
+    .bind(&name)
     .fetch_one(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        error!("Failed to create tab {}: {:#}", name, e);
+        "Failed to create tab. Please try again".to_string()
+    })?;
 
-    Ok(Tab::from(row))
+    Ok(tab)
 }
 
 #[tauri::command]
 pub async fn update_tab(
     pool: State<'_, SqlitePool>,
     id: i64,
-    name: &str,
+    name: String,
 ) -> Result<(), String> {
     sqlx::query(
-        "UPDATE tabs SET name = ?, updated_at = datetime('now') WHERE id = ?"
+        r#"
+        UPDATE tabs
+        SET name = ?,
+            updated_at = datetime('now')
+        WHERE id = ?
+        "#
     )
     .bind(name)
     .bind(id)
     .execute(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        error!("Failed to update tab {}: {:#}", id, e);
+        "Failed to update tab. Please try again".to_string()
+    })?;
 
     Ok(())
 }
@@ -176,17 +199,18 @@ pub async fn delete_tab(
     pool: State<'_, SqlitePool>,
     id: i64,
 ) -> Result<(), String> {
-    sqlx::query("DELETE FROM notes WHERE tab_id = ?")
+    let result = sqlx::query("DELETE FROM tabs WHERE id = ?")
         .bind(id)
         .execute(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            error!("Failed to delete tab {}: {:#}", id, e);
+            "Failed to delete tab. Please try again".to_string()
+        })?;
 
-    sqlx::query("DELETE FROM tabs WHERE id = ?")
-        .bind(id)
-        .execute(&*pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    if result.rows_affected() == 0 {
+        return Err(format!("Tab with id {id} not found"))
+    }
 
     Ok(())
 }

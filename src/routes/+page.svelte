@@ -3,7 +3,10 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { writable } from 'svelte/store';
-    import { text } from '@sveltejs/kit';
+  import { listen } from '@tauri-apps/api/event';
+  import { appLogDir } from '@tauri-apps/api/path';
+  import { openPath } from '@tauri-apps/plugin-opener';
+  import LoaderOverlay from '../lib/loaderOverlay.svelte';
 
   const notes = writable<Note[]>([]);
   const tabs = writable<Tab[]>([]);
@@ -50,35 +53,60 @@
     await loadNotes();
   });
 
+  let showOverlay = false;
+
+  listen('app-closing', () => {
+    showOverlay = true;
+  });
+
   async function loadTabs() {
-    const data = await invoke<Tab[]>('get_tabs');
-    tabs.set(data);
+    try {
+      const data = await invoke<Tab[]>('get_tabs');
+      tabs.set(data);
+    } catch (error) {
+      console.error("get_notes failed:", error);
+    }
   }
 
   async function loadNotes() {
-    console.log(`Loading notes for tab ID: ${currentTabId}`);
-    const data = await invoke<Note[]>('get_notes', { tabId: currentTabId });
-    notes.set(data);
+    try {
+      const data = await invoke<Note[]>('get_notes', { tabId: currentTabId });
+      notes.set(data);
+    } catch (error) {
+      console.error("get_notes failed:", error);
+    }
   }
 
   async function addNote() {
-    if (!newTitle) return;
-    await invoke('create_note', { title: newTitle, content: newContent, tabId: currentTabId });
-    newTitle = '';
-    newContent = '';
-    await loadNotes();
+    try {
+      if (!newTitle) return;
+      await invoke('create_note', { title: newTitle, content: newContent, tabId: currentTabId });
+      newTitle = '';
+      newContent = '';
+      await loadNotes();
+    } catch (error) {
+      console.error("create_note failed:", error);
+    }
   }
 
   async function removeNote(id: number) {
-    await invoke('delete_note', { id });
-    await loadNotes();
+    try {
+      await invoke('delete_note', { id });
+      await loadNotes();
+    } catch (error) {
+      console.error("delete_note failed:", error);
+    }
   }
 
   async function addTab() {
-    const newTab = await invoke<Tab>('create_tab', { name: 'New Tab' });
-    tabs.update((t: Tab[]) => [...t, newTab]);
-    currentTabId = newTab.id;
-    await loadNotes();
+    try {
+      const newTab = await invoke<Tab>('create_tab', { name: 'New Tab' });
+      tabs.update((t: Tab[]) => [...t, newTab]);
+      currentTabId = newTab.id;
+      await loadNotes();
+    } catch (error) {
+      console.error("create_tab failed:", error);
+    }
   }
 
   function clickOutside(node: HTMLElement, callback: () => void) {
@@ -108,17 +136,33 @@
     textarea.dispatchEvent(new Event('input'));
   }
 
+  async function openLogs() {
+    const logDir = await appLogDir();
+    await openPath(logDir);
+  }
+
+  let inputElement!: HTMLInputElement;
+
   function startRename(tab: Tab) {
     editingTabId = tab.id;
     editingTabName = tab.name;
+
+    setTimeout(() => {
+      inputElement?.select();
+      inputElement?.focus();
+    }, 0);
   }
 
   async function saveRename(tab: Tab) {
-    if (editingTabName.trim() === '') return;
-    await invoke('update_tab', { id: tab.id, name: editingTabName });
-    tab.name = editingTabName;
-    tabs.update((t: Tab[]) => [...t]);
-    editingTabId = null;
+    try {
+      if (editingTabName.trim() === '') return;
+      await invoke('update_tab', { id: tab.id, name: editingTabName });
+      tab.name = editingTabName;
+      tabs.update((t: Tab[]) => [...t]);
+      editingTabId = null;
+    } catch (error) {
+      console.error("update_tab failed:", error)
+    }
   }
 
   function cancelRename() {
@@ -126,21 +170,24 @@
   }
 
   async function onRemoveTab() {
-    if (contextTabId !== null) {
-      await invoke('delete_tab', { id: contextTabId });
-      await loadTabs();
-      if (currentTabId === contextTabId && $tabs.length > 0) {
-        currentTabId = $tabs[0].id;
-      } else if ($tabs.length === 0) {
-        currentTabId = null;
+    try {
+      if (contextTabId !== null) {
+        await invoke('delete_tab', { id: contextTabId });
+        await loadTabs();
+        if (currentTabId === contextTabId && $tabs.length > 0) {
+          currentTabId = $tabs[0].id;
+        } else if ($tabs.length === 0) {
+          currentTabId = null;
+        }
+        await loadNotes();
+        contextTabId = null;
       }
-      await loadNotes();
-      contextTabId = null;
+    } catch (error) {
+      console.error("delete_tab failed:", error);
     }
   }
 
   function selectTab(tabId: number) {
-    console.log(`Selected Tab ID: ${tabId}`);
     currentTabId = tabId;
     loadNotes();
   }
@@ -174,76 +221,99 @@
 </script>
 
 <main class="container">
-  <h1>Hello! This is a test.</h1>
+  {#if showOverlay}
+    <LoaderOverlay />
+  {/if}
 
   <div id="menuBar">
-    <h2>Create Note in Current Tab</h2>
+    <small>Create Note in Current Tab</small>
     <input bind:value={newTitle} placeholder="Title" />
-    <textarea bind:value={newContent} placeholder="Content"></textarea>
+    <textarea
+      bind:value={newContent}
+      placeholder="Content"
+      on:keydown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          addNote();
+        }
+        if (e.key === 'Enter' && e.shiftKey) {
+          e.preventDefault();
+          insertNewLineAtCursor(e.currentTarget);
+        }
+      }}>
+    </textarea>
     <button on:click={addNote} disabled={!currentTabId}>Save</button>
+    <button on:click={openLogs}>Open logs</button>
   </div>
 
-  <h2>Notes for the Current Tab</h2>
-  {#if currentTabId}
-    {#each $notes as note (note.id)}
-      <div
-        style="display: flex; flex-direction: column;"
-        class="note"
-        class:editing={editingNoteId === note.id}
-        role="article"
-        on:dblclick={() => startNoteEdit(note)}
-        use:clickOutside={() => {
-          if (editingNoteId === note.id) {
-            saveNoteEdit(note);
-          }
-        }}
-      >
-        {#if editingNoteId === note.id}
-          <input
-            bind:value={editingNoteTitle}
-            placeholder="Title | Enter to save"
-            on:keydown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
+  <div id="middle">
+    <h2>Notes for the Current Tab</h2>
+    <div id="noteContainer">
+      {#if currentTabId}
+        {#each $notes as note (note.id)}
+          <div
+            style="display: flex; flex-direction: column;"
+            class="note"
+            class:editing={editingNoteId === note.id}
+            role="article"
+            on:dblclick={() => startNoteEdit(note)}
+            use:clickOutside={() => {
+              if (editingNoteId === note.id) {
                 saveNoteEdit(note);
-              } else if (e.key === 'Escape') {
-                cancelNoteEdit();
-              }
-            }}
-          />
-          <textarea
-            bind:value={editingNoteContent}
-            placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
-            rows="6"
-            on:keydown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                saveNoteEdit(note);
-              } else if (e.key === 'Enter' && e.shiftKey) {
-                e.preventDefault();
-                insertNewLineAtCursor(e.currentTarget);
-              } else if (e.key === 'Escape') {
-                cancelNoteEdit();
               }
             }}
           >
-          </textarea>
-          <div class="edit-actions">
-            <button on:click={() => saveNoteEdit(note)}>Save</button>
-            <button on:click={cancelNoteEdit}>Cancel</button>
-            <small>Press Esc to cancel | click outside to save</small>
+            {#if editingNoteId === note.id}
+              <input
+                bind:value={editingNoteTitle}
+                placeholder="Title | Enter to save"
+                on:keydown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    saveNoteEdit(note);
+                  } else if (e.key === 'Escape') {
+                    cancelNoteEdit();
+                  }
+                }}
+              />
+              <textarea
+                bind:value={editingNoteContent}
+                placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
+                rows="6"
+                on:keydown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    saveNoteEdit(note);
+                  } else if (e.key === 'Enter' && e.shiftKey) {
+                    e.preventDefault();
+                    insertNewLineAtCursor(e.currentTarget);
+                  } else if (e.key === 'Escape') {
+                    cancelNoteEdit();
+                  }
+                }}
+              >
+              </textarea>
+              <div class="edit-actions">
+                <button on:click={() => saveNoteEdit(note)}>Save</button>
+                <button on:click={cancelNoteEdit}>Cancel</button>
+                <small>Press Esc to cancel | Press Enter or click outside to save</small>
+              </div>
+            {:else}
+              <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
+              <p class="noteContent">{note.content || 'No content'}</p>
+              <small>Last edited: {note.updated_at}</small>
+              <small>Tab ID: {currentTabId}</small>
+              <small>Note ID: {note.id}</small>
+              <button on:click={() => startNoteEdit(note)}>Edit</button>
+              <button on:click={() => removeNote(note.id)}>Delete</button>
+            {/if}
           </div>
-        {:else}
-          <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
-          <p class="noteContent">{note.content || 'No content'}</p>
-          <small>Last edited: {note.updated_at}</small>
-          <button on:click={() => removeNote(note.id)}>Delete</button>
-        {/if}
-      </div>
-    {/each}
-  {:else}
-    <p>No tabs available.</p>
-  {/if}
+        {/each}
+      {:else}
+        <p>No tabs available.</p>
+      {/if}
+    </div>
+  </div>
 
   <div id="tabBar">
     <button on:click={addTab}>Add Tab</button>
@@ -259,6 +329,7 @@
       >
         {#if editingTabId === tab.id}
           <input
+            bind:this={inputElement}
             bind:value={editingTabName}
             on:blur={() => saveRename(tab)}
             on:keydown={(e) => {
@@ -296,24 +367,103 @@
 }
 
 .container {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
   margin: 0;
-  padding-top: 10vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   text-align: center;
+  box-sizing: border-box;
+}
+
+#menuBar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  height: 70px;
+  border: 1px solid yellow;
+  box-sizing: border-box;
+}
+
+#middle {
+  position: fixed;
+  top: 70px;
+  bottom: 30px;
+  left: 0;
+  right: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  scrollbar-width: thin;
+  scrollbar-color: #555 #2f2f2f;
+  scroll-behavior: smooth;
+  border: 1px solid teal;
+}
+
+#middle::-webkit-scrollbar {
+  width: 8px;
+}
+#middle::-webkit-scrollbar-track {
+  background: #2f2f2f;
+}
+#middle::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+#noteContainer {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  width: 100%;
+  max-width: calc(100vw - 250px);
+  padding: 10px;
+  border: 1px solid cyan;
 }
 
 .note {
-  border: 1px solid blueviolet;
+  background: #383838;
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 120px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.noteContent {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.note:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
 }
 
 #tabBar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: row;
   justify-content: left;
-  width: 100vh;
+  width: 100%;
+  height: 30px;
+  gap: 5px;
   border: 1px solid red;
+  background-color: #2f2f2f;
+  box-sizing: border-box;
 }
 
 .tab {
@@ -322,12 +472,7 @@
   cursor: pointer;
   min-width: 10px;
   border: 1px solid green;
-  margin: 0 0 0 5px;
   padding: 3px;
-}
-
-h1 {
-  text-align: center;
 }
 
 .tab.selected {
