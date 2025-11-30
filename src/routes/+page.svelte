@@ -6,7 +6,17 @@
   import { listen } from '@tauri-apps/api/event';
   import { appLogDir } from '@tauri-apps/api/path';
   import { openPath } from '@tauri-apps/plugin-opener';
+  import 'overlayscrollbars/overlayscrollbars.css';
+  import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import LoaderOverlay from '../lib/loaderOverlay.svelte';
+
+  const options = {
+    scrollbars: {
+      autoHide: 'move' as const,
+      autoHideDelay: 800,
+      theme: 'os-theme-dark'
+    }
+  };
 
   const notes = writable<Note[]>([]);
   const tabs = writable<Tab[]>([]);
@@ -247,72 +257,76 @@
   </div>
 
   <div id="middle">
-    <h2>Notes for the Current Tab</h2>
-    <div id="noteContainer">
-      {#if currentTabId}
-        {#each $notes as note (note.id)}
-          <div
-            style="display: flex; flex-direction: column;"
-            class="note"
-            class:editing={editingNoteId === note.id}
-            role="article"
-            on:dblclick={() => startNoteEdit(note)}
-            use:clickOutside={() => {
-              if (editingNoteId === note.id) {
-                saveNoteEdit(note);
-              }
-            }}
-          >
-            {#if editingNoteId === note.id}
-              <input
-                bind:value={editingNoteTitle}
-                placeholder="Title | Enter to save"
-                on:keydown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    saveNoteEdit(note);
-                  } else if (e.key === 'Escape') {
-                    cancelNoteEdit();
-                  }
-                }}
-              />
-              <textarea
-                bind:value={editingNoteContent}
-                placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
-                rows="6"
-                on:keydown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    saveNoteEdit(note);
-                  } else if (e.key === 'Enter' && e.shiftKey) {
-                    e.preventDefault();
-                    insertNewLineAtCursor(e.currentTarget);
-                  } else if (e.key === 'Escape') {
-                    cancelNoteEdit();
-                  }
-                }}
-              >
-              </textarea>
-              <div class="edit-actions">
-                <button on:click={() => saveNoteEdit(note)}>Save</button>
-                <button on:click={cancelNoteEdit}>Cancel</button>
-                <small>Press Esc to cancel | Press Enter or click outside to save</small>
-              </div>
-            {:else}
-              <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
-              <p class="noteContent">{note.content || 'No content'}</p>
-              <small>Last edited: {note.updated_at}</small>
-              <small>Tab ID: {currentTabId}</small>
-              <small>Note ID: {note.id}</small>
-              <button on:click={() => startNoteEdit(note)}>Edit</button>
-              <button on:click={() => removeNote(note.id)}>Delete</button>
-            {/if}
-          </div>
-        {/each}
-      {:else}
-        <p>No tabs available.</p>
-      {/if}
-    </div>
+    <OverlayScrollbarsComponent {options}>
+      <div id="noteContainer">
+        {#if currentTabId}
+          {#each $notes as note (note.id)}
+            <div
+              class="note"
+              class:editing={editingNoteId === note.id}
+              role="article"
+              on:dblclick={() => startNoteEdit(note)}
+              use:clickOutside={() => {
+                if (editingNoteId === note.id) {
+                  saveNoteEdit(note);
+                }
+              }}
+            >
+              <OverlayScrollbarsComponent {options}>
+                <div id="noteContentOuter">
+                  {#if editingNoteId === note.id}
+                    <input
+                      bind:value={editingNoteTitle}
+                      placeholder="Title | Enter to save"
+                      on:keydown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          saveNoteEdit(note);
+                        } else if (e.key === 'Escape') {
+                          cancelNoteEdit();
+                        }
+                      }}
+                    />
+                    <textarea
+                      bind:value={editingNoteContent}
+                      placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
+                      rows="6"
+                      on:keydown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          saveNoteEdit(note);
+                        } else if (e.key === 'Enter' && e.shiftKey) {
+                          e.preventDefault();
+                          insertNewLineAtCursor(e.currentTarget);
+                        } else if (e.key === 'Escape') {
+                          cancelNoteEdit();
+                        }
+                      }}
+                    >
+                    </textarea>
+                    <div class="edit-actions">
+                      <button on:click={() => saveNoteEdit(note)}>Save</button>
+                      <button on:click={cancelNoteEdit}>Cancel</button>
+                      <small>Press Esc to cancel | Press Enter or click outside to save</small>
+                    </div>
+                  {:else}
+                    <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
+                    <p class="noteContent">{note.content || 'No content'}</p>
+                    <small>Last edited: {note.updated_at}</small>
+                    <small>Tab ID: {currentTabId}</small>
+                    <small>Note ID: {note.id}</small>
+                    <button on:click={() => startNoteEdit(note)}>Edit</button>
+                    <button on:click={() => removeNote(note.id)}>Delete</button>
+                  {/if}
+                </div>
+              </OverlayScrollbarsComponent>
+            </div>
+          {/each}
+        {:else}
+          <p>No tabs available.</p>
+        {/if}
+      </div>
+    </OverlayScrollbarsComponent>
   </div>
 
   <div id="tabBar">
@@ -357,13 +371,17 @@
   font-weight: 400;
 
   color: #f6f6f6;
-  background-color: #2f2f2f;
+  background-color: #222;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+#noteContentOuter {
+  margin-right: 15px;
 }
 
 .container {
@@ -397,57 +415,62 @@
   bottom: 30px;
   left: 0;
   right: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 20px;
+  overflow: hidden;
+  padding: 0 20px 0 20px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  scrollbar-width: thin;
-  scrollbar-color: #555 #2f2f2f;
-  scroll-behavior: smooth;
   border: 1px solid teal;
-}
-
-#middle::-webkit-scrollbar {
-  width: 8px;
-}
-#middle::-webkit-scrollbar-track {
-  background: #2f2f2f;
-}
-#middle::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 4px;
 }
 
 #noteContainer {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  flex: 1 1 0;
+  min-height: 0;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
   width: 100%;
-  max-width: calc(100vw - 250px);
+  max-width: calc(100vw - 100px);
   padding: 10px;
   border: 1px solid cyan;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .note {
-  background: #383838;
+  display: flex;
+  flex-direction: column;
+  background: #2f2f2f;
   border-radius: 8px;
   padding: 16px;
-  min-height: 120px;
+  height: fit-content;
+  max-height: 550px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.noteContent {
-  white-space: pre-wrap;
-  word-wrap: break-word;
+.note.editing textarea {
+  max-height: 550px;
+  width: 100%;
+}
+
+.noteTitle {
+  margin: 0 0 18px 0;
 }
 
 .note:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+}
+
+.noteContent {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  margin: 12px 0;
+  text-align: left;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 #tabBar {
@@ -462,7 +485,7 @@
   height: 30px;
   gap: 5px;
   border: 1px solid red;
-  background-color: #2f2f2f;
+  background-color: #222;
   box-sizing: border-box;
 }
 
@@ -477,6 +500,14 @@
 
 .tab.selected {
   background-color: #444;
+}
+
+:global {
+  .os-theme-dark {
+    --os-handle-bg: #555;
+    --os-handle-bg-hover: #aaa;
+    --os-handle-bg-active: #aaa;
+  }
 }
 
 </style>
