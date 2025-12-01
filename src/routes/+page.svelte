@@ -69,56 +69,6 @@
     showOverlay = true;
   });
 
-  async function loadTabs() {
-    try {
-      const data = await invoke<Tab[]>('get_tabs');
-      tabs.set(data);
-    } catch (error) {
-      console.error("get_notes failed:", error);
-    }
-  }
-
-  async function loadNotes() {
-    try {
-      const data = await invoke<Note[]>('get_notes', { tabId: currentTabId });
-      notes.set(data);
-    } catch (error) {
-      console.error("get_notes failed:", error);
-    }
-  }
-
-  async function addNote() {
-    try {
-      if (!newTitle) return;
-      await invoke('create_note', { title: newTitle, content: newContent, tabId: currentTabId });
-      newTitle = '';
-      newContent = '';
-      await loadNotes();
-    } catch (error) {
-      console.error("create_note failed:", error);
-    }
-  }
-
-  async function removeNote(id: number) {
-    try {
-      await invoke('delete_note', { id });
-      await loadNotes();
-    } catch (error) {
-      console.error("delete_note failed:", error);
-    }
-  }
-
-  async function addTab() {
-    try {
-      const newTab = await invoke<Tab>('create_tab', { name: 'New Tab' });
-      tabs.update((t: Tab[]) => [...t, newTab]);
-      currentTabId = newTab.id;
-      await loadNotes();
-    } catch (error) {
-      console.error("create_tab failed:", error);
-    }
-  }
-
   function clickOutside(node: HTMLElement, callback: () => void) {
     const handleClick = (event: MouseEvent) => {
       if (node && !node.contains(event.target as Node) && !event.defaultPrevented) {
@@ -151,6 +101,93 @@
     await openPath(logDir);
   }
 
+  async function loadNotes() {
+    try {
+      const data = await invoke<Note[]>('get_notes', { tabId: currentTabId });
+      notes.set(data);
+    } catch (error) {
+      console.error("get_notes failed:", error);
+    }
+  }
+
+  async function addNote() {
+    try {
+      if (!newTitle) return;
+      await invoke('create_note', { title: newTitle, content: newContent, tabId: currentTabId });
+      newTitle = '';
+      newContent = '';
+      await loadNotes();
+    } catch (error) {
+      console.error("create_note failed:", error);
+    }
+  }
+
+  async function removeNote(id: number) {
+    try {
+      await invoke('delete_note', { id });
+      await loadNotes();
+    } catch (error) {
+      console.error("delete_note failed:", error);
+    }
+  }
+
+  function startNoteEdit(note: Note) {
+    editingNoteId = note.id;
+    editingNoteTitle = note.title;
+    editingNoteContent = note.content;
+  }
+
+  async function saveNoteEdit(note: Note) {
+    if (editingNoteContent.trim() === '') return;
+    await invoke('update_note', { id: note.id, title: editingNoteTitle, content: editingNoteContent || '' });
+    note.title = editingNoteTitle;
+    note.content = editingNoteContent;
+    notes.update((n: Note[]) => [...n]);
+    editingNoteId = null;
+  }
+
+  function cancelNoteEdit() {
+    editingNoteId = null;
+  }
+
+  async function loadTabs() {
+    try {
+      const data = await invoke<Tab[]>('get_tabs');
+      tabs.set(data);
+    } catch (error) {
+      console.error("get_notes failed:", error);
+    }
+  }
+
+  async function addTab() {
+    try {
+      const newTab = await invoke<Tab>('create_tab', { name: 'New Tab' });
+      tabs.update((t: Tab[]) => [...t, newTab]);
+      currentTabId = newTab.id;
+      await loadNotes();
+    } catch (error) {
+      console.error("create_tab failed:", error);
+    }
+  }
+
+  async function onRemoveTab() {
+    try {
+      if (contextTabId !== null) {
+        await invoke('delete_tab', { id: contextTabId });
+        await loadTabs();
+        if (currentTabId === contextTabId && $tabs.length > 0) {
+          currentTabId = $tabs[0].id;
+        } else if ($tabs.length === 0) {
+          currentTabId = null;
+        }
+        await loadNotes();
+        contextTabId = null;
+      }
+    } catch (error) {
+      console.error("delete_tab failed:", error);
+    }
+  }
+
   let inputElement!: HTMLInputElement;
 
   function startRename(tab: Tab) {
@@ -179,46 +216,9 @@
     editingTabId = null;
   }
 
-  async function onRemoveTab() {
-    try {
-      if (contextTabId !== null) {
-        await invoke('delete_tab', { id: contextTabId });
-        await loadTabs();
-        if (currentTabId === contextTabId && $tabs.length > 0) {
-          currentTabId = $tabs[0].id;
-        } else if ($tabs.length === 0) {
-          currentTabId = null;
-        }
-        await loadNotes();
-        contextTabId = null;
-      }
-    } catch (error) {
-      console.error("delete_tab failed:", error);
-    }
-  }
-
   function selectTab(tabId: number) {
     currentTabId = tabId;
     loadNotes();
-  }
-
-  function startNoteEdit(note: Note) {
-    editingNoteId = note.id;
-    editingNoteTitle = note.title;
-    editingNoteContent = note.content;
-  }
-
-  async function saveNoteEdit(note: Note) {
-    if (editingNoteContent.trim() === '') return;
-    await invoke('update_note', { id: note.id, title: editingNoteTitle, content: editingNoteContent || '' });
-    note.title = editingNoteTitle;
-    note.content = editingNoteContent;
-    notes.update((n: Note[]) => [...n]);
-    editingNoteId = null;
-  }
-
-  function cancelNoteEdit() {
-    editingNoteId = null;
   }
 
   function handleContextMenu(tabId: number, event: MouseEvent) {
