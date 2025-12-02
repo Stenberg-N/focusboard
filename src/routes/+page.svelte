@@ -101,6 +101,14 @@
     await openPath(logDir);
   }
 
+  async function backupDatabase() {
+    try {
+      await invoke('backup_database');
+    } catch (error) {
+      console.error("database backup failed:", error);
+    }
+  }
+
   async function loadNotes() {
     try {
       const data = await invoke<Note[]>('get_notes', { tabId: currentTabId });
@@ -254,6 +262,7 @@
     </textarea>
     <button on:click={addNote} disabled={!currentTabId}>Save</button>
     <button on:click={openLogs}>Open logs</button>
+    <button on:click={backupDatabase}>Backup Database</button>
   </div>
 
   <div id="middle">

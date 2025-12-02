@@ -73,7 +73,7 @@ async fn main() {
             let pool_cleanup_close = pool.clone();
 
             tauri::async_runtime::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(600));
                 loop {
                     interval.tick().await;
                     let _ = sqlx::query("PRAGMA optimize")
@@ -123,6 +123,13 @@ async fn main() {
                                     warn!("Failed to incrementally vacuum database: {:#}", e);
                                     e
                                 });
+                            let _ = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE);")
+                                .execute(&pool)
+                                .await
+                                .map_err(|e| {
+                                    warn!("Failed to flush WAL: {:#}", e);
+                                    e
+                                });
 
                             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
@@ -146,7 +153,8 @@ async fn main() {
             commands::get_tabs,
             commands::create_tab,
             commands::update_tab,
-            commands::delete_tab
+            commands::delete_tab,
+            commands::backup_database
         ])
         .run(context)
         .expect("Error while running tauri application");

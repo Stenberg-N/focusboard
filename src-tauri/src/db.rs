@@ -5,7 +5,8 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
         .after_connect(|conn, _| {
             Box::pin(async move {
                 conn.execute(sqlx::query(
-                    "PRAGMA foreign_keys = ON;\
+                    "PRAGMA journal_mode = WAL;\
+                    PRAGMA foreign_keys = ON;\
                     PRAGMA auto_vacuum = INCREMENTAL;\
                     PRAGMA optimize;"
                 ))

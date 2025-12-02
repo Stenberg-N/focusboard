@@ -3,7 +3,12 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{SqlitePool, FromRow, query_as};
 use tauri::State;
-use log::{error};
+use log::{error, info};
+use time::{OffsetDateTime, macros::format_description};
+use std::fs::{create_dir, read_dir, copy};
+use std::path::PathBuf;
+use dirs::data_local_dir;
+use std::io::ErrorKind;
 
 #[derive(FromRow, Serialize, Deserialize, Debug, Clone)]
 pub struct Note {
@@ -211,6 +216,79 @@ pub async fn delete_tab(
     if result.rows_affected() == 0 {
         return Err(format!("Tab with id {id} not found"))
     }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn backup_database() -> Result<(), String> {
+    let local_data_dir: PathBuf = data_local_dir().ok_or("Failed to get local data directory")?;
+    let identifier = "com.stenberg.focusboard";
+    let app_local_data_dir = local_data_dir.join(identifier);
+
+    let database_path: PathBuf = app_local_data_dir.join("database");
+    let backup_base_path: PathBuf = app_local_data_dir.join("database_backups");
+
+    match create_dir(&backup_base_path) {
+        Ok(()) => {
+            info!("Database backup path created: {:?}", backup_base_path);
+        }
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+            info!("Database backup path already exists {:?}", backup_base_path);
+        }
+        Err(e) => {
+            error!("Failed to create database backup path {:?}: {:#}", backup_base_path, e);
+        }
+    }
+
+    let now = OffsetDateTime::now_local()
+        .map_err(|e| {
+            error!("Failed to get local time: {:#}", e);
+            e.to_string()
+        })?;
+
+    let timestamp = now.format(&format_description!("[year]-[month]-[day]_T[hour]H-[minute]M-[second]S"))
+        .map_err(|e| {
+            error!("Failed to format local time: {:#}", e);
+            e.to_string()
+        })?;
+
+    let backup_path: PathBuf = backup_base_path.join(format!("database-backup_{}", timestamp));
+
+    match create_dir(&backup_path) {
+        Ok(()) => {
+            info!("Backup directory successfully created");
+        }
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+            info!("Backup directory already exists {:?}", backup_path);
+        }
+        Err(e) => {
+            error!("Failed to create backup directory: {:#}", e);
+        }
+    }
+
+    let entries = read_dir(&database_path)
+        .map_err(|e| {
+            error!("Failed to read entries from {:?}: {:#}", database_path, e);
+            "Failed to read entries from database directory.".to_string()
+        })?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| {
+            error!("Failed to read directory entry: {:#}", e);
+            "Failed to read database directory entry.".to_string()
+        })?;
+
+        let src_path = entry.path();
+        let dest_path = backup_path.join(entry.file_name());
+
+        copy(&src_path, &dest_path)
+            .map_err(|e| {
+                error!("Failed to copy {:?} to {:?}: {:#}", src_path, dest_path, e);
+                "Failed to copy database to destination.".to_string()
+            })?;
+    }
+    info!("Database backup successfully completed");
 
     Ok(())
 }
