@@ -9,14 +9,7 @@
   import 'overlayscrollbars/overlayscrollbars.css';
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import LoaderOverlay from '../lib/loaderOverlay.svelte';
-
-  const options = {
-    scrollbars: {
-      autoHide: 'move' as const,
-      autoHideDelay: 800,
-      theme: 'os-theme-dark'
-    }
-  };
+  import BasicNote from '../lib/basicNote.svelte';
 
   const notes = writable<Note[]>([]);
   const tabs = writable<Tab[]>([]);
@@ -27,10 +20,6 @@
   let editingTabId: number | null = null;
   let contextTabId: number | null = null;
   let editingTabName: string = '';
-
-  let editingNoteId: number | null = null;
-  let editingNoteTitle: string = '';
-  let editingNoteContent: string = '';
 
   let newTitle: string = '';
   let newContent: string = '';
@@ -151,50 +140,6 @@
         statusBar.textContent = `Error: ${error}`;
       }
     }
-  }
-
-  async function removeNote(id: number) {
-    try {
-      await invoke('delete_note', { id });
-      await loadNotes();
-      if (statusBar) {
-        statusBar.textContent = "Deleted note successfully";
-      }
-    } catch (error) {
-      console.error("delete_note failed:", error);
-      if (statusBar) {
-        statusBar.textContent = `Error: ${error}`;
-      }
-    }
-  }
-
-  function startNoteEdit(note: Note) {
-    editingNoteId = note.id;
-    editingNoteTitle = note.title;
-    editingNoteContent = note.content;
-  }
-
-  async function saveNoteEdit(note: Note) {
-    try {
-      if (editingNoteContent.trim() === '') return;
-      await invoke('update_note', { id: note.id, title: editingNoteTitle, content: editingNoteContent || '' });
-      note.title = editingNoteTitle;
-      note.content = editingNoteContent;
-      notes.update((n: Note[]) => [...n]);
-      editingNoteId = null;
-      if (statusBar) {
-        statusBar.textContent = "Updated note successfully";
-      }
-    } catch (error) {
-      console.error("update_note failed:", error);
-      if (statusBar) {
-        statusBar.textContent = `Error: ${error}`;
-      }
-    }
-  }
-
-  function cancelNoteEdit() {
-    editingNoteId = null;
   }
 
   async function loadTabs() {
@@ -329,70 +274,15 @@
   </div>
 
   <div id="middle">
-    <OverlayScrollbarsComponent {options}>
+    <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
       <div id="noteContainer">
         {#if currentTabId}
           {#each $notes as note (note.id)}
-            <div
-              class="note"
-              class:editing={editingNoteId === note.id}
-              role="article"
-              on:dblclick={() => startNoteEdit(note)}
-              use:clickOutside={() => {
-                if (editingNoteId === note.id) {
-                  saveNoteEdit(note);
-                }
-              }}
-            >
-              <OverlayScrollbarsComponent {options}>
-                <div id="noteContentOuter">
-                  {#if editingNoteId === note.id}
-                    <input
-                      bind:value={editingNoteTitle}
-                      placeholder="Title | Enter to save"
-                      on:keydown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          saveNoteEdit(note);
-                        } else if (e.key === 'Escape') {
-                          cancelNoteEdit();
-                        }
-                      }}
-                    />
-                    <textarea
-                      bind:value={editingNoteContent}
-                      placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
-                      rows="6"
-                      on:keydown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          saveNoteEdit(note);
-                        } else if (e.key === 'Enter' && e.shiftKey) {
-                          e.preventDefault();
-                          insertNewLineAtCursor(e.currentTarget);
-                        } else if (e.key === 'Escape') {
-                          cancelNoteEdit();
-                        }
-                      }}
-                    >
-                    </textarea>
-                    <div class="edit-actions">
-                      <button on:click={() => saveNoteEdit(note)}>Save</button>
-                      <button on:click={cancelNoteEdit}>Cancel</button>
-                      <small>Press Esc to cancel | Press Enter or click outside to save</small>
-                    </div>
-                  {:else}
-                    <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
-                    <p class="noteContent">{note.content || 'No content'}</p>
-                    <small>Last edited: {note.updated_at}</small>
-                    <small>Tab ID: {currentTabId}</small>
-                    <small>Note ID: {note.id}</small>
-                    <button on:click={() => startNoteEdit(note)}>Edit</button>
-                    <button on:click={() => removeNote(note.id)}>Delete</button>
-                  {/if}
-                </div>
-              </OverlayScrollbarsComponent>
-            </div>
+            <BasicNote
+              {note}
+                setStatus={(msg) => (statusBar.textContent = msg)}
+                reloadNotes={loadNotes}
+            ></BasicNote>
           {/each}
         {:else}
           <p>No tabs available.</p>
@@ -441,6 +331,7 @@
 
 <style>
 :root {
+  * { box-sizing: border-box; }
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 24px;
@@ -456,10 +347,6 @@
   -webkit-text-size-adjust: 100%;
 }
 
-#noteContentOuter {
-  margin-right: 15px;
-}
-
 .container {
   height: 100%;
   width: 100%;
@@ -469,7 +356,6 @@
   flex-direction: column;
   justify-content: flex-start;
   text-align: center;
-  box-sizing: border-box;
 }
 
 #menuBar {
@@ -482,7 +368,6 @@
   align-items: center;
   height: 70px;
   border: 1px solid yellow;
-  box-sizing: border-box;
 }
 
 #middle {
@@ -493,7 +378,6 @@
   right: 0;
   overflow: hidden;
   padding: 0 20px 0 20px;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -514,41 +398,6 @@
   overflow-x: hidden;
 }
 
-.note {
-  display: flex;
-  flex-direction: column;
-  background: #2f2f2f;
-  border-radius: 8px;
-  padding: 16px;
-  height: fit-content;
-  max-height: 550px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.note.editing textarea {
-  max-height: 550px;
-  width: 100%;
-}
-
-.noteTitle {
-  margin: 0 0 18px 0;
-}
-
-.note:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-}
-
-.noteContent {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  margin: 12px 0;
-  text-align: left;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-
 #tabBar {
   position: fixed;
   bottom: 20px;
@@ -562,7 +411,6 @@
   gap: 5px;
   border: 1px solid red;
   background-color: #222;
-  box-sizing: border-box;
 }
 
 .tab {
@@ -589,7 +437,6 @@
   width: 100%;
   height: 20px;
   background-color: #222;
-  box-sizing: border-box;
   align-items: center;
   padding: 2px 0 2px 10px;
   font-size: 11px;
