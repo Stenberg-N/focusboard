@@ -51,6 +51,8 @@
     updated_at: string;
   }
 
+  let statusBar!: HTMLSpanElement;
+
   onMount(async () => {
     await loadTabs();
     if ($tabs.length === 0) {
@@ -61,6 +63,9 @@
       currentTabId = $tabs[0].id;
     }
     await loadNotes();
+    if (statusBar) {
+      statusBar.textContent = "App setup complete";
+    }
   });
 
   let showOverlay = false;
@@ -104,8 +109,14 @@
   async function backupDatabase() {
     try {
       await invoke('backup_database');
+      if (statusBar) {
+        statusBar.textContent = "Backup successful";
+      }
     } catch (error) {
       console.error("database backup failed:", error);
+      if (statusBar) {
+        statusBar.textContent = `Error: ${error}`;
+      }
     }
   }
 
@@ -113,8 +124,14 @@
     try {
       const data = await invoke<Note[]>('get_notes', { tabId: currentTabId });
       notes.set(data);
+      if (statusBar) {
+        statusBar.textContent = "Loaded notes successfully";
+      }
     } catch (error) {
       console.error("get_notes failed:", error);
+      if (statusBar) {
+        statusBar.textContent = `Error: ${error}`;
+      }
     }
   }
 
@@ -125,8 +142,14 @@
       newTitle = '';
       newContent = '';
       await loadNotes();
+      if (statusBar) {
+        statusBar.textContent = "Created note successfully";
+      }
     } catch (error) {
       console.error("create_note failed:", error);
+      if (statusBar) {
+        statusBar.textContent = `Error: ${error}`;
+      }
     }
   }
 
@@ -134,8 +157,14 @@
     try {
       await invoke('delete_note', { id });
       await loadNotes();
+      if (statusBar) {
+        statusBar.textContent = "Deleted note successfully";
+      }
     } catch (error) {
       console.error("delete_note failed:", error);
+      if (statusBar) {
+        statusBar.textContent = `Error: ${error}`;
+      }
     }
   }
 
@@ -146,12 +175,22 @@
   }
 
   async function saveNoteEdit(note: Note) {
-    if (editingNoteContent.trim() === '') return;
-    await invoke('update_note', { id: note.id, title: editingNoteTitle, content: editingNoteContent || '' });
-    note.title = editingNoteTitle;
-    note.content = editingNoteContent;
-    notes.update((n: Note[]) => [...n]);
-    editingNoteId = null;
+    try {
+      if (editingNoteContent.trim() === '') return;
+      await invoke('update_note', { id: note.id, title: editingNoteTitle, content: editingNoteContent || '' });
+      note.title = editingNoteTitle;
+      note.content = editingNoteContent;
+      notes.update((n: Note[]) => [...n]);
+      editingNoteId = null;
+      if (statusBar) {
+        statusBar.textContent = "Updated note successfully";
+      }
+    } catch (error) {
+      console.error("update_note failed:", error);
+      if (statusBar) {
+        statusBar.textContent = `Error: ${error}`;
+      }
+    }
   }
 
   function cancelNoteEdit() {
@@ -162,8 +201,14 @@
     try {
       const data = await invoke<Tab[]>('get_tabs');
       tabs.set(data);
+      if (statusBar) {
+        statusBar.textContent = "Loaded tabs successfully";
+      }
     } catch (error) {
       console.error("get_notes failed:", error);
+      if (statusBar) {
+        statusBar.textContent = `Error: ${error}`;
+      }
     }
   }
 
@@ -173,8 +218,14 @@
       tabs.update((t: Tab[]) => [...t, newTab]);
       currentTabId = newTab.id;
       await loadNotes();
+      if (statusBar) {
+        statusBar.textContent = "Added tab successfully";
+      }
     } catch (error) {
       console.error("create_tab failed:", error);
+      if (statusBar) {
+        statusBar.textContent = `Error: ${error}`;
+      }
     }
   }
 
@@ -190,9 +241,15 @@
         }
         await loadNotes();
         contextTabId = null;
+        if (statusBar) {
+          statusBar.textContent = "Deleted tab successfully";
+        }
       }
     } catch (error) {
       console.error("delete_tab failed:", error);
+      if (statusBar) {
+        statusBar.textContent = `Error: ${error}`;
+      }
     }
   }
 
@@ -215,8 +272,14 @@
       tab.name = editingTabName;
       tabs.update((t: Tab[]) => [...t]);
       editingTabId = null;
+      if (statusBar) {
+        statusBar.textContent = "Updated tab name successfully";
+      }
     } catch (error) {
       console.error("update_tab failed:", error)
+      if (statusBar) {
+        statusBar.textContent = `Error: ${error}`;
+      }
     }
   }
 
@@ -367,6 +430,10 @@
     {/each}
   </div>
 
+  <div id="statusBar">
+    <span bind:this={statusBar}></span>
+  </div>
+
   <ContextMenu bind:this={contextMenu}>
     <Item on:click={onRemoveTab}>Remove Tab</Item>
   </ContextMenu>
@@ -421,7 +488,7 @@
 #middle {
   position: fixed;
   top: 70px;
-  bottom: 30px;
+  bottom: 50px;
   left: 0;
   right: 0;
   overflow: hidden;
@@ -484,7 +551,7 @@
 
 #tabBar {
   position: fixed;
-  bottom: 0;
+  bottom: 20px;
   left: 0;
   right: 0;
   display: flex;
@@ -509,6 +576,23 @@
 
 .tab.selected {
   background-color: #444;
+}
+
+#statusBar {
+  position: fixed;
+  display: flex;
+  flex-direction: row;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  justify-content: flex-start;
+  width: 100%;
+  height: 20px;
+  background-color: #222;
+  box-sizing: border-box;
+  align-items: center;
+  padding: 2px 0 2px 10px;
+  font-size: 11px;
 }
 
 :global {
