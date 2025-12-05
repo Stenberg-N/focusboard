@@ -37,6 +37,7 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
             title TEXT NOT NULL,
             content TEXT,
             tab_id INTEGER,
+            note_type TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (tab_id) REFERENCES tabs(id) ON DELETE CASCADE

@@ -24,11 +24,14 @@
   let newTitle: string = '';
   let newContent: string = '';
 
+  let noteType: string = 'basic';
+
   type Note = {
     id: number;
     title: string;
     content: string;
     tab_id: number | null;
+    note_type: string;
     created_at: string;
     updated_at: string;
   };
@@ -112,9 +115,10 @@
   async function addNote() {
     try {
       if (!newTitle) return;
-      await invoke('create_note', { title: newTitle, content: newContent, tabId: currentTabId });
+      await invoke('create_note', { title: newTitle, content: newContent, tabId: currentTabId, noteType: noteType });
       newTitle = '';
       newContent = '';
+      noteType = 'basic';
       await loadNotes();
       if (statusBar) {
         statusBar.textContent = "Created note successfully";
@@ -238,6 +242,10 @@
 
   <div id="menuBar">
     <small>Create Note in Current Tab</small>
+    <select bind:value={noteType}>
+      <option value="basic">Basic</option>
+      <option value="categorical">Categorical</option>
+    </select>
     <input bind:value={newTitle} placeholder="Title" />
     <textarea
       bind:value={newContent}
@@ -263,11 +271,15 @@
       <div id="noteContainer">
         {#if currentTabId}
           {#each $notes as note (note.id)}
-            <BasicNote
-              {note}
-                setStatus={(msg) => (statusBar.textContent = msg)}
-                reloadNotes={loadNotes}
-            ></BasicNote>
+            {#if note.note_type === 'basic'}
+              <BasicNote
+                {note}
+                  setStatus={(msg) => (statusBar.textContent = msg)}
+                  reloadNotes={loadNotes}
+              ></BasicNote>
+            {:else if note.note_type === 'categorical'}
+              placeholder
+            {/if}
           {/each}
         {:else}
           <p>No tabs available.</p>

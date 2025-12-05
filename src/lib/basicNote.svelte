@@ -2,11 +2,17 @@
   import { invoke } from '@tauri-apps/api/core';
   import 'overlayscrollbars/overlayscrollbars.css';
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
+  import collapse from 'svelte-collapse';
+
+  let open = true;
 
   export let note: {
     id: number;
     title: string;
     content: string;
+    tab_id: number | null;
+    note_type: string;
+    created_at: string;
     updated_at: string;
   };
 
@@ -102,7 +108,11 @@
   use:clickOutside
 >
   <OverlayScrollbarsComponent {options}>
-    <div id="noteContentOuter">
+    <div id="note-title-box">
+      <button on:click={() => open = !open}>Toggle</button>
+      <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
+    </div>
+    <div id="noteContentOuter" use:collapse={{open}}>
       {#if isEditing}
         <input
           bind:value={editingTitle}
@@ -139,10 +149,10 @@
           <small>Press Esc to cancel | Press Enter or click outside to save</small>
         </div>
       {:else}
-        <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
         <p class="noteContent">{note.content || 'No content'}</p>
         <small>Last edited: {note.updated_at}</small>
         <small>Note ID: {note.id}</small>
+        <small>Tab ID: {note.tab_id}</small>
         <button on:click={startEdit}>Edit</button>
         <button on:click={removeNote}>Delete</button>
       {/if}

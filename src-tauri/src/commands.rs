@@ -16,6 +16,7 @@ pub struct Note {
     pub title: String,
     pub content: String,
     pub tab_id: Option<i64>,
+    pub note_type: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -57,18 +58,20 @@ pub async fn create_note(
     title: String,
     content: String,
     tab_id: Option<i64>,
+    note_type: String,
 ) -> Result<Note, String> {
 
     let note = query_as::<_, Note>(
         r#"
-        INSERT INTO notes (title, content, tab_id)
-        VALUES (?, ?, ?)
-        RETURNING id, title, content, tab_id, created_at, updated_at
+        INSERT INTO notes (title, content, tab_id, note_type)
+        VALUES (?, ?, ?, ?)
+        RETURNING id, title, content, tab_id, note_type, created_at, updated_at
         "#
     )
     .bind(&title)
     .bind(content)
     .bind(tab_id)
+    .bind(note_type)
     .fetch_one(&*pool)
     .await
     .map_err(|e| {
