@@ -5,14 +5,17 @@
   import collapse from 'svelte-collapse';
   import { getContext } from 'svelte';
   import type { Writable } from 'svelte/store';
+  import type { Note } from '../types/types';
 
   const noteOpenStates = getContext<Writable<Record<number, boolean>>>('noteOpenStates');
+  const notes = getContext<Writable<Note[]>>('notes');
 
   export let note: {
     id: number;
     title: string;
     content: string;
     tab_id: number | null;
+    parent_id: number | null;
     note_type: string;
     created_at: string;
     updated_at: string;
@@ -29,6 +32,8 @@
   let editingTitle = '';
   let editingContent = '';
 
+  const isCategory = note.note_type === 'categorical';
+
   let originalOpenState = false;
   let hasSavedState = false;
 
@@ -41,6 +46,21 @@
       theme: 'os-theme-dark'
     }
   };
+
+  async function addChild() {
+    try {
+      const newNote = await invoke<typeof note>('create_note', { title: 'Untitled', content: '', tabId: note.tab_id, noteType: 'basic', parentId: note.id });
+      notes.update((n: Note[]) => [...n, newNote])
+      noteOpenStates.update(states => ({ ...states, [newNote.id]: (open = true) }));
+
+      await reloadNotes();
+
+      setStatus("Added sub-note successfully");
+    } catch (error) {
+      console.error("Failed to add sub-note:", error);
+      setStatus(`Failed to add sub-note: ${error}`);
+    }
+  }
 
   function startEdit() {
     originalOpenState = open;
@@ -124,61 +144,88 @@
 
 <div
   class="note"
+  class:category={isCategory}
   class:editing={isEditing}
   role="article"
-  on:dblclick={startEdit}
+  on:dblclick|stopPropagation={startEdit}
   use:clickOutside
 >
   <div id="noteTitleBox">
+    <small>Last edited: {note.updated_at}</small>
+    <small>Note ID: {note.id}</small>
+    <small>Tab ID: {note.tab_id}</small>
     <div id="noteControls">
-      <button on:click={toggle}>{open ? 'Hide' : 'Show'}</button>
-      <button on:click={startEdit}>Edit</button>
-      <button on:click={removeNote}>Delete</button>
+      {#if isCategory}
+        <button on:click={toggle} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
+        <button on:click|stopPropagation={addChild}>Add Note</button>
+        <button on:click={startEdit}>Edit</button>
+        <button on:click={removeNote}>Delete</button>
+      {:else if !isCategory}
+        <button on:click={toggle} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
+        <button on:click={startEdit}>Edit</button>
+        <button on:click={removeNote}>Delete</button>
+      {/if}
     </div>
-    <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
+    {#if isEditing}
+      <input
+        bind:value={editingTitle}
+        placeholder="Title | Enter to save"
+        on:keydown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            saveEdit();
+          } else if (e.key === 'Escape') {
+            cancelEdit();
+          }
+        }}
+      />
+    {:else}
+      <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
+    {/if}
   </div>
   <OverlayScrollbarsComponent {options}>
     <div id="noteContentOuter" use:collapse={{ open, duration: 0.4, easing: 'ease' }}>
       {#if isEditing}
-        <input
-          bind:value={editingTitle}
-          placeholder="Title | Enter to save"
-          on:keydown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              saveEdit();
-            } else if (e.key === 'Escape') {
-              cancelEdit();
-            }
-          }}
-        />
-        <textarea
-          bind:value={editingContent}
-          placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
-          rows="6"
-          on:keydown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              saveEdit();
-            } else if (e.key === 'Enter' && e.shiftKey) {
-              e.preventDefault();
-              insertNewLineAtCursor(e.currentTarget);
-            } else if (e.key === 'Escape') {
-              cancelEdit();
-            }
-          }}
-        >
-        </textarea>
-        <div class="edit-actions">
-          <button on:click={saveEdit}>Save</button>
-          <button on:click={cancelEdit}>Cancel</button>
-          <small>Press Esc to cancel | Press Enter or click outside to save</small>
-        </div>
+        {#if !isCategory}
+          <textarea
+            bind:value={editingContent}
+            placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
+            rows="6"
+            on:keydown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                saveEdit();
+              } else if (e.key === 'Enter' && e.shiftKey) {
+                e.preventDefault();
+                insertNewLineAtCursor(e.currentTarget);
+              } else if (e.key === 'Escape') {
+                cancelEdit();
+              }
+            }}
+          >
+          </textarea>
+          <div class="edit-actions">
+            <button on:click={saveEdit}>Save</button>
+            <button on:click={cancelEdit}>Cancel</button>
+            <small>Press Esc to cancel | Press Enter or click outside to save</small>
+          </div>
+        {:else if isCategory}
+          <div class="edit-actions">
+            <button on:click={saveEdit}>Save</button>
+            <button on:click={cancelEdit}>Cancel</button>
+            <small>Press Esc to cancel | Press Enter or click outside to save</small>
+          </div>
+        {/if}
       {:else}
-        <p class="noteContent">{note.content || 'No content'}</p>
-        <small>Last edited: {note.updated_at}</small>
-        <small>Note ID: {note.id}</small>
-        <small>Tab ID: {note.tab_id}</small>
+        {#if !isCategory}
+          <p class="noteContent">{note.content || 'No content'}</p>
+        {:else if isCategory}
+          <div class="subNotes">
+            {#each $notes.filter(n => n.parent_id === note.id).sort((a, b) => b.id - a.id) as child (child.id)}
+              <svelte:self note={child} {reloadNotes} {setStatus} />
+            {/each}
+          </div>
+        {/if}
       {/if}
     </div>
   </OverlayScrollbarsComponent>
@@ -195,6 +242,7 @@
     max-height: 550px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     transition: transform 0.2s, box-shadow 0.2s;
+    align-items: center;
   }
 
   .note.editing textarea {
@@ -234,4 +282,15 @@
     flex-direction: row;
     gap: 5px;
   }
+
+  .subNotes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(370px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+    padding: 12px;
+    background: #2a2a2a;
+    border-radius: 8px;
+  }
+
 </style>

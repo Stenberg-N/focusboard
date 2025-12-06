@@ -11,7 +11,8 @@
   import { load } from '@tauri-apps/plugin-store';
   import type { Store } from '@tauri-apps/plugin-store';
   import LoaderOverlay from '../lib/loaderOverlay.svelte';
-  import BasicNote from '../lib/basicNote.svelte';
+  import BasicNote from '../lib/Note.svelte';
+  import type { Note, Tab } from '../types/types';
 
   const notes = writable<Note[]>([]);
   const tabs = writable<Tab[]>([]);
@@ -20,6 +21,7 @@
 
   const noteOpenStates = writable<Record<number, boolean>>({});
   setContext('noteOpenStates', noteOpenStates);
+  setContext('notes', notes);
 
   let contextMenu: ContextMenu;
 
@@ -32,27 +34,7 @@
   let contextTabName: string | null = null;
   let editingTabName: string = '';
 
-  let newTitle: string = '';
-  let newContent: string = '';
-
   let noteType: string = 'basic';
-
-  type Note = {
-    id: number;
-    title: string;
-    content: string;
-    tab_id: number | null;
-    note_type: string;
-    created_at: string;
-    updated_at: string;
-  };
-
-  type Tab = {
-    id: number;
-    name: string;
-    created_at: string;
-    updated_at: string;
-  }
 
   let statusBar!: HTMLSpanElement;
 
@@ -139,18 +121,6 @@
     showOverlay = true;
   });
 
-  function insertNewLineAtCursor(textarea: HTMLTextAreaElement) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const value = textarea.value;
-
-    textarea.value = value.slice(0, start) + '\n' + value.slice(end);
-
-    textarea.selectionStart = textarea.selectionEnd = start + 1;
-
-    textarea.dispatchEvent(new Event('input'));
-  }
-
   async function openLogs() {
     const logDir = await appLogDir();
     await openPath(logDir);
@@ -201,10 +171,8 @@
 
   async function addNote() {
     try {
-      const newNote = await invoke<Note>('create_note', { title: newTitle || '', content: newContent || '', tabId: currentTabId, noteType: noteType });
+      const newNote = await invoke<Note>('create_note', { title: 'Untitled', content: '', tabId: currentTabId, parentId: null, noteType: noteType });
       notes.update((n: Note[]) => [...n, newNote]);
-      newTitle = '';
-      newContent = '';
       noteType = 'basic';
       await loadNotes();
       if (statusBar) {
@@ -336,22 +304,7 @@
       <option value="basic">Basic</option>
       <option value="categorical">Categorical</option>
     </select>
-    <input bind:value={newTitle} placeholder="Title" />
-    <textarea
-      bind:value={newContent}
-      placeholder="Content"
-      on:keydown={(e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          addNote();
-        }
-        if (e.key === 'Enter' && e.shiftKey) {
-          e.preventDefault();
-          insertNewLineAtCursor(e.currentTarget);
-        }
-      }}>
-    </textarea>
-    <button on:click={addNote} disabled={!currentTabId}>Save</button>
+    <button on:click={addNote} disabled={!currentTabId}>Create Note</button>
     <button on:click={openLogs}>Open logs</button>
     <button on:click={backupDatabase}>Backup Database</button>
   </div>
@@ -360,16 +313,12 @@
     <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
       <div id="noteContainer">
         {#if currentTabId}
-          {#each $notes as note (note.id)}
-            {#if note.note_type === 'basic'}
-              <BasicNote
-                {note}
-                  setStatus={(msg) => (statusBar.textContent = msg)}
-                  reloadNotes={loadNotes}
-              ></BasicNote>
-            {:else if note.note_type === 'categorical'}
-              placeholder
-            {/if}
+          {#each $notes.filter(n => n.parent_id == null) as note (note.id)}
+            <BasicNote
+              {note}
+                setStatus={(msg) => (statusBar.textContent = msg)}
+                reloadNotes={loadNotes}
+            ></BasicNote>
           {/each}
         {:else}
           <p>No tabs available.</p>
@@ -475,7 +424,7 @@
   display: grid;
   flex: 1 1 0;
   min-height: 0;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 20px;
   width: 100%;
   max-width: calc(100vw - 100px);
