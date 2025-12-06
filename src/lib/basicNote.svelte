@@ -3,8 +3,10 @@
   import 'overlayscrollbars/overlayscrollbars.css';
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import collapse from 'svelte-collapse';
+  import { getContext } from 'svelte';
+  import type { Writable } from 'svelte/store';
 
-  let open = true;
+  const noteOpenStates = getContext<Writable<Record<number, boolean>>>('noteOpenStates');
 
   export let note: {
     id: number;
@@ -15,6 +17,10 @@
     created_at: string;
     updated_at: string;
   };
+
+  let open: boolean;
+
+  $: open = $noteOpenStates[note.id] ?? true;
 
   export let reloadNotes: () => Promise<void>;
   export let setStatus: (msg: string) => void = () => {};
@@ -47,10 +53,10 @@
 
       await reloadNotes();
 
-      setStatus('Updated note successfully');
+      setStatus(`Updated note ${note.title} successfully`);
     } catch (error) {
       console.error('update_note failed:', error);
-      setStatus(`Error: ${error}`);
+      setStatus(`Failed to update note: ${error}`);
     }
   }
 
@@ -64,10 +70,10 @@
 
       await reloadNotes();
 
-      setStatus('Deleted note successfully');
+      setStatus(`Deleted note ${note.title} successfully`);
     } catch (error) {
       console.error('delete_note failed:', error);
-      setStatus(`Error: ${error}`);
+      setStatus(`Failed to delete note: ${error}`);
     }
   }
 
@@ -98,6 +104,11 @@
     };
   }
 
+  function toggle() {
+    const isOpen = !(open ?? true);
+    noteOpenStates.update(states => ({ ...states, [note.id]: isOpen }));
+  }
+
 </script>
 
 <div
@@ -107,12 +118,14 @@
   on:dblclick={startEdit}
   use:clickOutside
 >
+  <div id="noteTitleBox">
+    <button on:click={toggle}>{open ? 'Hide' : 'Show'}</button>
+    <button on:click={startEdit}>Edit</button>
+    <button on:click={removeNote}>Delete</button>
+    <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
+  </div>
   <OverlayScrollbarsComponent {options}>
-    <div id="note-title-box">
-      <button on:click={() => open = !open}>Toggle</button>
-      <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
-    </div>
-    <div id="noteContentOuter" use:collapse={{open}}>
+    <div id="noteContentOuter" use:collapse={{ open, duration: 0.4, easing: 'ease' }}>
       {#if isEditing}
         <input
           bind:value={editingTitle}
@@ -153,8 +166,6 @@
         <small>Last edited: {note.updated_at}</small>
         <small>Note ID: {note.id}</small>
         <small>Tab ID: {note.tab_id}</small>
-        <button on:click={startEdit}>Edit</button>
-        <button on:click={removeNote}>Delete</button>
       {/if}
     </div>
   </OverlayScrollbarsComponent>
@@ -176,6 +187,7 @@
   .note.editing textarea {
     max-height: 550px;
     width: 100%;
+    max-width: 100%;
   }
 
   .noteTitle {
@@ -198,5 +210,9 @@
 
   #noteContentOuter {
     margin-right: 15px;
+  }
+
+  #noteTitleBox {
+    flex-direction: row;
   }
 </style>

@@ -1,47 +1,46 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod db;
 mod commands;
+mod db;
 
-use std::fs;
-use std::path::PathBuf;
-use tauri::{Manager, async_runtime, Emitter};
-use std::sync::{Arc, Mutex};
-use log::{warn, error, info};
-use std::io::ErrorKind;
-use tauri_plugin_log::{Target, TargetKind};
 use colored::*;
+use log::{error, info, warn};
+use std::fs;
+use std::io::ErrorKind;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use tauri::{async_runtime, Emitter, Manager};
+use tauri_plugin_log::{Target, TargetKind};
 
 #[async_std::main]
 async fn main() {
     let context = tauri::generate_context!();
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_log::Builder::new()
-            .targets([
-                Target::new(TargetKind::Stdout),
-                Target::new(TargetKind::LogDir { file_name: None })
-            ])
-            .level(log::LevelFilter::Info)
-            .format(|out, message, record| {
-                let level = match record.level() {
-                    log::Level::Error => "ERROR".red(),
-                    log::Level::Warn => "WARN".yellow(),
-                    log::Level::Info => "INFO".green(),
-                    log::Level::Debug => "DEBUG".purple(),
-                    log::Level::Trace => "TRACE".blue(),
-                };
-                out.finish(format_args!("{level} | {}", message))
-            })
-            .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
-            .max_file_size(50000)
-            .filter(|md| {
-                !md.target().starts_with("tao::platform_impl")
-            })
-            .build()
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::LogDir { file_name: None }),
+                ])
+                .level(log::LevelFilter::Info)
+                .format(|out, message, record| {
+                    let level = match record.level() {
+                        log::Level::Error => "ERROR".red(),
+                        log::Level::Warn => "WARN".yellow(),
+                        log::Level::Info => "INFO".green(),
+                        log::Level::Debug => "DEBUG".purple(),
+                        log::Level::Trace => "TRACE".blue(),
+                    };
+                    out.finish(format_args!("{level} | {}", message))
+                })
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                .max_file_size(50000)
+                .filter(|md| !md.target().starts_with("tao::platform_impl"))
+                .build(),
         )
-
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let base_dir: PathBuf = app.path().app_local_data_dir()?.into();
@@ -50,7 +49,10 @@ async fn main() {
             info!("Attempting to create database directory: {:?}", data_dir);
             if let Err(e) = fs::create_dir_all(&data_dir) {
                 if e.kind() != ErrorKind::AlreadyExists {
-                    error!("Failed to create database directory {:?}: {:#}", data_dir, e);
+                    error!(
+                        "Failed to create database directory {:?}: {:#}",
+                        data_dir, e
+                    );
                 }
             } else {
                 info!("Database directory already exists: {:?}", data_dir);
@@ -63,11 +65,10 @@ async fn main() {
 
             info!("DB URL: {}", db_url);
 
-            let pool = async_runtime::block_on(db::init_db(&db_url))
-                .map_err(|e| {
-                    error!("Failed to initialize database at {:?}: {:#}", db_url, e);
-                    e
-                })?;
+            let pool = async_runtime::block_on(db::init_db(&db_url)).map_err(|e| {
+                error!("Failed to initialize database at {:?}: {:#}", db_url, e);
+                e
+            })?;
 
             let pool_cleanup_background = pool.clone();
             let pool_cleanup_close = pool.clone();

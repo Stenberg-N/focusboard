@@ -1,4 +1,4 @@
-use sqlx::{SqlitePool, sqlite::SqlitePoolOptions, Executor};
+use sqlx::{sqlite::SqlitePoolOptions, Executor, SqlitePool};
 
 pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
     let db = SqlitePoolOptions::new()
@@ -8,7 +8,7 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
                     "PRAGMA journal_mode = WAL;\
                     PRAGMA foreign_keys = ON;\
                     PRAGMA auto_vacuum = INCREMENTAL;\
-                    PRAGMA optimize;"
+                    PRAGMA optimize;",
                 ))
                 .await?;
 
@@ -26,7 +26,7 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
             name TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
-        )"
+        )",
     )
     .execute(&mut *conn)
     .await?;
@@ -41,7 +41,7 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (tab_id) REFERENCES tabs(id) ON DELETE CASCADE
-        )"
+        )",
     )
     .execute(&mut *conn)
     .await?;

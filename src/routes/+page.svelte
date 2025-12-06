@@ -1,6 +1,6 @@
 <script lang="ts">
   import ContextMenu, { Item } from 'svelte-contextmenu';
-  import { onMount } from 'svelte';
+  import { onMount, setContext } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { writable } from 'svelte/store';
   import { listen } from '@tauri-apps/api/event';
@@ -8,17 +8,28 @@
   import { openPath } from '@tauri-apps/plugin-opener';
   import 'overlayscrollbars/overlayscrollbars.css';
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
+  import { load } from '@tauri-apps/plugin-store';
+  import type { Store } from '@tauri-apps/plugin-store';
   import LoaderOverlay from '../lib/loaderOverlay.svelte';
   import BasicNote from '../lib/basicNote.svelte';
 
   const notes = writable<Note[]>([]);
   const tabs = writable<Tab[]>([]);
 
+  let store: Store;
+
+  const noteOpenStates = writable<Record<number, boolean>>({});
+  setContext('noteOpenStates', noteOpenStates);
+
   let contextMenu: ContextMenu;
 
   let currentTabId: number | null = null;
+  let currentTabName: string | null = null;
+  let previousTabId: number | null = null;
+  let previousTabName: string | null = null;
   let editingTabId: number | null = null;
   let contextTabId: number | null = null;
+  let contextTabName: string | null = null;
   let editingTabName: string = '';
 
   let newTitle: string = '';
@@ -46,23 +57,85 @@
   let statusBar!: HTMLSpanElement;
 
   onMount(async () => {
+    store = await load('ui-state.json');
+
     await loadTabs();
     if ($tabs.length === 0) {
       const newTab = await invoke<Tab>('create_tab', { name: 'Untitled' });
       tabs.update((t: Tab[]) => [...t, newTab]);
       currentTabId = newTab.id;
-    } else {
-      currentTabId = $tabs[0].id;
+      currentTabName = newTab.name;
     }
-    await loadNotes();
-    if (statusBar) {
-      statusBar.textContent = "App setup complete";
+
+    const savedTabId = await store.get<number>('currentTabId') ?? null;
+    const savedTabName = await store.get<string>('currentTabName') ?? null;
+    const savedOpenStates = await store.get<Record<number, boolean>>('noteOpenStates');
+
+    if (savedTabId !== null && savedTabName !== null && $tabs.some(t => t.id === savedTabId && t.name === savedTabName)) {
+      try {
+        currentTabId = savedTabId;
+        currentTabName = savedTabName;
+        await loadNotes();
+      } catch (error) {
+        console.error(`Failed to fetch the tab ${currentTabName} from previous session:`, error);
+        if (statusBar) {
+          statusBar.textContent = `Failed to fetch the tab ${currentTabName} from previous session: ${error}`;
+        }
+      }
     }
+
+    if (savedOpenStates) {
+      try {
+        noteOpenStates.set(savedOpenStates);
+      } catch (error) {
+        console.error("Failed to set note states to their previous states:", error);
+        if (statusBar) {
+          statusBar.textContent = `Failed to set notes' states to their previous states: ${error}`;
+        }
+      }
+    }
+
+    noteOpenStates.subscribe(async (states) => {
+      if (store) {
+        try {
+          await store.set('noteOpenStates', states);
+          await store.save();
+        } catch (error) {
+          console.error("Failed to save note state change:", error);
+          if (statusBar) {
+            statusBar.textContent = `Failed to save note state change: ${error}`;
+          }
+        }
+      }
+    });
+
+    if (statusBar) statusBar.textContent = "App setup complete";
   });
+
+  $: if (currentTabId !== previousTabId && currentTabId !== null && currentTabName !== previousTabName && currentTabName !== null && store) {
+    try {
+      previousTabId = currentTabId;
+      previousTabName = currentTabName;
+      store.set('currentTabId', currentTabId);
+      store.set('currentTabName', currentTabName);
+      store.save();
+    } catch (error) {
+      console.error("Failed to update the store with the currently selected tab's ID and name:", error);
+      if (statusBar) {
+        statusBar.textContent = `Failed to update the store with the currently selected tab's ID and name: ${error}`;
+      }
+    }
+  }
 
   let showOverlay = false;
 
-  listen('app-closing', () => {
+  listen('app-closing', async () => {
+    if (store) {
+      store.set('currentTabId', currentTabId);
+      store.set('noteOpenStates', $noteOpenStates);
+      store.set('currentTabName', currentTabName);
+      store.save();
+    }
     showOverlay = true;
   });
 
@@ -90,24 +163,38 @@
         statusBar.textContent = "Backup successful";
       }
     } catch (error) {
-      console.error("database backup failed:", error);
+      console.error("Database backup failed:", error);
       if (statusBar) {
-        statusBar.textContent = `Error: ${error}`;
+        statusBar.textContent = `Database backup failed: ${error}`;
       }
     }
+  }
+
+  function clearStaleOpenStates(validNoteIds: number[]) {
+    noteOpenStates.update(states => {
+      const newStates: Record<number, boolean> = {};
+      for (const id of validNoteIds) {
+        newStates[id] = states[id] ?? true;
+      }
+      return newStates;
+    });
   }
 
   async function loadNotes() {
     try {
       const data = await invoke<Note[]>('get_notes', { tabId: currentTabId });
       notes.set(data);
+
+      const validIds = data.map(n => n.id);
+      clearStaleOpenStates(validIds);
+
       if (statusBar) {
-        statusBar.textContent = "Loaded notes successfully";
+        statusBar.textContent = `Loaded notes on tab ${currentTabName} successfully`;
       }
     } catch (error) {
       console.error("get_notes failed:", error);
       if (statusBar) {
-        statusBar.textContent = `Error: ${error}`;
+        statusBar.textContent = `Failed to load notes: ${error}`;
       }
     }
   }
@@ -115,7 +202,8 @@
   async function addNote() {
     try {
       if (!newTitle) return;
-      await invoke('create_note', { title: newTitle, content: newContent, tabId: currentTabId, noteType: noteType });
+      const newNote = await invoke<Note>('create_note', { title: newTitle, content: newContent, tabId: currentTabId, noteType: noteType });
+      notes.update((n: Note[]) => [...n, newNote]);
       newTitle = '';
       newContent = '';
       noteType = 'basic';
@@ -126,7 +214,7 @@
     } catch (error) {
       console.error("create_note failed:", error);
       if (statusBar) {
-        statusBar.textContent = `Error: ${error}`;
+        statusBar.textContent = `Failed to create note: ${error}`;
       }
     }
   }
@@ -136,12 +224,12 @@
       const data = await invoke<Tab[]>('get_tabs');
       tabs.set(data);
       if (statusBar) {
-        statusBar.textContent = "Loaded tabs successfully";
+        statusBar.textContent = `Loaded tabs successfully. Loaded the last tab you left on: ${currentTabName}`;
       }
     } catch (error) {
-      console.error("get_notes failed:", error);
+      console.error("get_tabs failed:", error);
       if (statusBar) {
-        statusBar.textContent = `Error: ${error}`;
+        statusBar.textContent = `Failed to load tabs: ${error}`;
       }
     }
   }
@@ -151,14 +239,15 @@
       const newTab = await invoke<Tab>('create_tab', { name: 'New Tab' });
       tabs.update((t: Tab[]) => [...t, newTab]);
       currentTabId = newTab.id;
+      currentTabName = newTab.name;
       await loadNotes();
       if (statusBar) {
-        statusBar.textContent = "Added tab successfully";
+        statusBar.textContent = `Added tab ${currentTabName} successfully`;
       }
     } catch (error) {
       console.error("create_tab failed:", error);
       if (statusBar) {
-        statusBar.textContent = `Error: ${error}`;
+        statusBar.textContent = `Failed to create tab: ${error}`;
       }
     }
   }
@@ -170,19 +259,21 @@
         await loadTabs();
         if (currentTabId === contextTabId && $tabs.length > 0) {
           currentTabId = $tabs[0].id;
+          currentTabName = $tabs[0].name;
         } else if ($tabs.length === 0) {
           currentTabId = null;
+          currentTabName = null;
         }
         await loadNotes();
         contextTabId = null;
         if (statusBar) {
-          statusBar.textContent = "Deleted tab successfully";
+          statusBar.textContent = `Deleted tab ${contextTabName} successfully`;
         }
       }
     } catch (error) {
       console.error("delete_tab failed:", error);
       if (statusBar) {
-        statusBar.textContent = `Error: ${error}`;
+        statusBar.textContent = `Failed to delete tab: ${error}`;
       }
     }
   }
@@ -207,7 +298,7 @@
       tabs.update((t: Tab[]) => [...t]);
       editingTabId = null;
       if (statusBar) {
-        statusBar.textContent = "Updated tab name successfully";
+        statusBar.textContent = `Updated tab name to ${editingTabName} successfully`;
       }
     } catch (error) {
       console.error("update_tab failed:", error)
@@ -221,16 +312,16 @@
     editingTabId = null;
   }
 
-  function selectTab(tabId: number) {
+  function selectTab(tabId: number, tabName: string) {
     currentTabId = tabId;
+    currentTabName = tabName;
     loadNotes();
   }
 
-  function handleContextMenu(tabId: number, event: MouseEvent) {
+  function handleContextMenu(tabId: number, tabName: string, event: MouseEvent) {
     event.preventDefault();
-    currentTabId = tabId;
     contextTabId = tabId;
-    loadNotes();
+    contextTabName = tabName;
     contextMenu.show(event);
   }
 </script>
@@ -296,9 +387,9 @@
         tabindex="0"
         class="tab"
         class:selected={currentTabId === tab.id}
-        on:click={() => selectTab(tab.id)}
+        on:click={() => selectTab(tab.id, tab.name)}
         on:dblclick={() => startRename(tab)}
-        on:contextmenu={(e) => handleContextMenu(tab.id, e)}
+        on:contextmenu={(event) => handleContextMenu(tab.id, tab.name, event)}
       >
         {#if editingTabId === tab.id}
           <input

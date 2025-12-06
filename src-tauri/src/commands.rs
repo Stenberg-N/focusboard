@@ -1,14 +1,14 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
-use serde::{Deserialize, Serialize};
-use sqlx::{SqlitePool, FromRow, query_as};
-use tauri::State;
-use log::{error, info};
-use time::{OffsetDateTime, macros::format_description};
-use std::fs::{create_dir, read_dir, copy};
-use std::path::PathBuf;
 use dirs::data_local_dir;
+use log::{error, info};
+use serde::{Deserialize, Serialize};
+use sqlx::{query_as, FromRow, SqlitePool};
+use std::fs::{copy, create_dir, read_dir};
 use std::io::ErrorKind;
+use std::path::PathBuf;
+use tauri::State;
+use time::{macros::format_description, OffsetDateTime};
 
 #[derive(FromRow, Serialize, Deserialize, Debug, Clone)]
 pub struct Note {
@@ -39,7 +39,7 @@ pub async fn get_notes(
         SELECT * FROM notes
         WHERE tab_id IS NOT DISTINCT FROM ?
         ORDER BY updated_at DESC
-        "#
+        "#,
     )
     .bind(tab_id)
     .fetch_all(&*pool)
@@ -60,13 +60,12 @@ pub async fn create_note(
     tab_id: Option<i64>,
     note_type: String,
 ) -> Result<Note, String> {
-
     let note = query_as::<_, Note>(
         r#"
         INSERT INTO notes (title, content, tab_id, note_type)
         VALUES (?, ?, ?, ?)
         RETURNING id, title, content, tab_id, note_type, created_at, updated_at
-        "#
+        "#,
     )
     .bind(&title)
     .bind(content)
@@ -96,7 +95,7 @@ pub async fn update_note(
             content = ?,
             updated_at = datetime('now')
         WHERE id = ?
-        "#
+        "#,
     )
     .bind(title)
     .bind(content)
@@ -112,10 +111,7 @@ pub async fn update_note(
 }
 
 #[tauri::command]
-pub async fn delete_note(
-    pool: State<'_, SqlitePool>,
-    id: i64,
-) -> Result<(), String> {
+pub async fn delete_note(pool: State<'_, SqlitePool>, id: i64) -> Result<(), String> {
     let result = sqlx::query("DELETE FROM notes WHERE id = ?")
         .bind(id)
         .execute(&*pool)
@@ -126,21 +122,19 @@ pub async fn delete_note(
         })?;
 
     if result.rows_affected() == 0 {
-        return Err(format!("Note with id {id} not found"))
+        return Err(format!("Note with id {id} not found"));
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_tabs(
-    pool: State<'_, SqlitePool>,
-) -> Result<Vec<Tab>, String> {
+pub async fn get_tabs(pool: State<'_, SqlitePool>) -> Result<Vec<Tab>, String> {
     let tabs = query_as::<_, Tab>(
         r#"
         SELECT * FROM tabs
         ORDER BY id ASC
-        "#
+        "#,
     )
     .fetch_all(&*pool)
     .await
@@ -153,17 +147,13 @@ pub async fn get_tabs(
 }
 
 #[tauri::command]
-pub async fn create_tab(
-    pool: State<'_, SqlitePool>,
-    name: String,
-) -> Result<Tab, String> {
-
+pub async fn create_tab(pool: State<'_, SqlitePool>, name: String) -> Result<Tab, String> {
     let tab = query_as::<_, Tab>(
         r#"
         INSERT INTO tabs (name)
         VALUES (?)
         RETURNING id, name, created_at, updated_at
-        "#
+        "#,
     )
     .bind(&name)
     .fetch_one(&*pool)
@@ -177,18 +167,14 @@ pub async fn create_tab(
 }
 
 #[tauri::command]
-pub async fn update_tab(
-    pool: State<'_, SqlitePool>,
-    id: i64,
-    name: String,
-) -> Result<(), String> {
+pub async fn update_tab(pool: State<'_, SqlitePool>, id: i64, name: String) -> Result<(), String> {
     sqlx::query(
         r#"
         UPDATE tabs
         SET name = ?,
             updated_at = datetime('now')
         WHERE id = ?
-        "#
+        "#,
     )
     .bind(name)
     .bind(id)
@@ -203,10 +189,7 @@ pub async fn update_tab(
 }
 
 #[tauri::command]
-pub async fn delete_tab(
-    pool: State<'_, SqlitePool>,
-    id: i64,
-) -> Result<(), String> {
+pub async fn delete_tab(pool: State<'_, SqlitePool>, id: i64) -> Result<(), String> {
     let result = sqlx::query("DELETE FROM tabs WHERE id = ?")
         .bind(id)
         .execute(&*pool)
@@ -217,7 +200,7 @@ pub async fn delete_tab(
         })?;
 
     if result.rows_affected() == 0 {
-        return Err(format!("Tab with id {id} not found"))
+        return Err(format!("Tab with id {id} not found"));
     }
 
     Ok(())
@@ -240,17 +223,22 @@ pub async fn backup_database() -> Result<(), String> {
             info!("Database backup path already exists {:?}", backup_base_path);
         }
         Err(e) => {
-            error!("Failed to create database backup path {:?}: {:#}", backup_base_path, e);
+            error!(
+                "Failed to create database backup path {:?}: {:#}",
+                backup_base_path, e
+            );
         }
     }
 
-    let now = OffsetDateTime::now_local()
-        .map_err(|e| {
-            error!("Failed to get local time: {:#}", e);
-            e.to_string()
-        })?;
+    let now = OffsetDateTime::now_local().map_err(|e| {
+        error!("Failed to get local time: {:#}", e);
+        e.to_string()
+    })?;
 
-    let timestamp = now.format(&format_description!("[year]-[month]-[day]_T[hour]H-[minute]M-[second]S"))
+    let timestamp = now
+        .format(&format_description!(
+            "[year]-[month]-[day]_T[hour]H-[minute]M-[second]S"
+        ))
         .map_err(|e| {
             error!("Failed to format local time: {:#}", e);
             e.to_string()
@@ -270,11 +258,10 @@ pub async fn backup_database() -> Result<(), String> {
         }
     }
 
-    let entries = read_dir(&database_path)
-        .map_err(|e| {
-            error!("Failed to read entries from {:?}: {:#}", database_path, e);
-            "Failed to read entries from database directory.".to_string()
-        })?;
+    let entries = read_dir(&database_path).map_err(|e| {
+        error!("Failed to read entries from {:?}: {:#}", database_path, e);
+        "Failed to read entries from database directory.".to_string()
+    })?;
 
     for entry in entries {
         let entry = entry.map_err(|e| {
@@ -285,11 +272,10 @@ pub async fn backup_database() -> Result<(), String> {
         let src_path = entry.path();
         let dest_path = backup_path.join(entry.file_name());
 
-        copy(&src_path, &dest_path)
-            .map_err(|e| {
-                error!("Failed to copy {:?} to {:?}: {:#}", src_path, dest_path, e);
-                "Failed to copy database to destination.".to_string()
-            })?;
+        copy(&src_path, &dest_path).map_err(|e| {
+            error!("Failed to copy {:?} to {:?}: {:#}", src_path, dest_path, e);
+            "Failed to copy database to destination.".to_string()
+        })?;
     }
     info!("Database backup successfully completed");
 
