@@ -38,7 +38,7 @@ pub async fn get_notes(
         r#"
         SELECT * FROM notes
         WHERE tab_id IS NOT DISTINCT FROM ?
-        ORDER BY updated_at DESC
+        ORDER BY created_at DESC
         "#,
     )
     .bind(tab_id)

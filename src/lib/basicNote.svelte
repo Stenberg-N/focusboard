@@ -29,6 +29,11 @@
   let editingTitle = '';
   let editingContent = '';
 
+  let originalOpenState = false;
+  let hasSavedState = false;
+
+  $: open = isEditing || open;
+
   const options = {
     scrollbars: {
       autoHide: 'move' as const,
@@ -38,18 +43,19 @@
   };
 
   function startEdit() {
+    originalOpenState = open;
+    hasSavedState = true;
     isEditing = true;
     editingTitle = note.title;
     editingContent = note.content;
   }
 
   async function saveEdit() {
-    if (editingContent.trim() === '') return;
-
     try {
       await invoke('update_note', { id: note.id, title: editingTitle, content: editingContent || '' });
 
       isEditing = false;
+      noteOpenStates.update(states => ({ ...states, [note.id]: (open = true) }));
 
       await reloadNotes();
 
@@ -62,6 +68,11 @@
 
   function cancelEdit() {
     isEditing = false;
+
+    if (hasSavedState) {
+      noteOpenStates.update(states => ({ ...states, [note.id]: originalOpenState }));
+      hasSavedState = false;
+    }
   }
 
   async function removeNote() {
@@ -119,9 +130,11 @@
   use:clickOutside
 >
   <div id="noteTitleBox">
-    <button on:click={toggle}>{open ? 'Hide' : 'Show'}</button>
-    <button on:click={startEdit}>Edit</button>
-    <button on:click={removeNote}>Delete</button>
+    <div id="noteControls">
+      <button on:click={toggle}>{open ? 'Hide' : 'Show'}</button>
+      <button on:click={startEdit}>Edit</button>
+      <button on:click={removeNote}>Delete</button>
+    </div>
     <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
   </div>
   <OverlayScrollbarsComponent {options}>
@@ -213,6 +226,12 @@
   }
 
   #noteTitleBox {
+    justify-items: center;
+  }
+
+  #noteControls {
+    display: flex;
     flex-direction: row;
+    gap: 5px;
   }
 </style>

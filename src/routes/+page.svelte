@@ -201,8 +201,7 @@
 
   async function addNote() {
     try {
-      if (!newTitle) return;
-      const newNote = await invoke<Note>('create_note', { title: newTitle, content: newContent, tabId: currentTabId, noteType: noteType });
+      const newNote = await invoke<Note>('create_note', { title: newTitle || '', content: newContent || '', tabId: currentTabId, noteType: noteType });
       notes.update((n: Note[]) => [...n, newNote]);
       newTitle = '';
       newContent = '';
