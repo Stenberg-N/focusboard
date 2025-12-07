@@ -2,7 +2,8 @@
   import { invoke } from '@tauri-apps/api/core';
   import 'overlayscrollbars/overlayscrollbars.css';
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
-  import collapse from 'svelte-collapse';
+  import { slide } from 'svelte/transition';
+  import { cubicInOut } from 'svelte/easing';
   import { getContext } from 'svelte';
   import type { Writable } from 'svelte/store';
   import type { Note } from '../types/types';
@@ -37,15 +38,7 @@
   let originalOpenState = false;
   let hasSavedState = false;
 
-  $: open = isEditing || open;
-
-  const options = {
-    scrollbars: {
-      autoHide: 'move' as const,
-      autoHideDelay: 800,
-      theme: 'os-theme-dark'
-    }
-  };
+  $: collapseOpen = isEditing || open;
 
   async function addChild() {
     try {
@@ -183,55 +176,61 @@
       <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
     {/if}
   </div>
-  <OverlayScrollbarsComponent {options}>
-    <div id="noteContentOuter" use:collapse={{ open, duration: 0.4, easing: 'ease' }}>
-      {#if isEditing}
-        {#if !isCategory}
-          <textarea
-            bind:value={editingContent}
-            placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
-            rows="6"
-            on:keydown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                saveEdit();
-              } else if (e.key === 'Enter' && e.shiftKey) {
-                e.preventDefault();
-                insertNewLineAtCursor(e.currentTarget);
-              } else if (e.key === 'Escape') {
-                cancelEdit();
-              }
-            }}
-          >
-          </textarea>
-          <div class="edit-actions">
-            <button on:click={saveEdit}>Save</button>
-            <button on:click={cancelEdit}>Cancel</button>
-            <small>Press Esc to cancel | Press Enter or click outside to save</small>
-          </div>
-        {:else if isCategory}
-          <div class="edit-actions">
-            <button on:click={saveEdit}>Save</button>
-            <button on:click={cancelEdit}>Cancel</button>
-            <small>Press Esc to cancel | Press Enter or click outside to save</small>
-          </div>
-        {/if}
-      {:else}
-        {#if !isCategory}
-          <p class="noteContent">{note.content || 'No content'}</p>
-        {:else if isCategory}
-          <div class="subNotes">
-            {#each $notes.filter(n => n.parent_id === note.id).sort((a, b) => b.id - a.id) as child (child.id)}
-              <svelte:self note={child} {reloadNotes} {setStatus} />
-            {/each}
-          </div>
-        {/if}
+  <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
+    <div id="noteContentOuter">
+      {#if collapseOpen}
+        <div style="overflow: hidden;" transition:slide={{ duration: 400, easing: cubicInOut }}>
+          {#if isEditing}
+            {#if !isCategory}
+              <textarea
+                bind:value={editingContent}
+                placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
+                rows="16"
+                on:keydown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    saveEdit();
+                  } else if (e.key === 'Enter' && e.shiftKey) {
+                    e.preventDefault();
+                    insertNewLineAtCursor(e.currentTarget);
+                  } else if (e.key === 'Escape') {
+                    cancelEdit();
+                  }
+                }}
+              >
+              </textarea>
+              <div class="edit-actions">
+                <button on:click={saveEdit}>Save</button>
+                <button on:click={cancelEdit}>Cancel</button>
+                <small>Press Esc to cancel | Press Enter or click outside to save</small>
+              </div>
+            {:else if isCategory}
+              <div class="edit-actions">
+                <button on:click={saveEdit}>Save</button>
+                <button on:click={cancelEdit}>Cancel</button>
+                <small>Press Esc to cancel | Press Enter or click outside to save</small>
+              </div>
+            {/if}
+          {:else}
+            {#if !isCategory}
+              <p class="noteContent">{note.content || 'No content'}</p>
+            {:else if isCategory}
+              <div class="subNotes">
+                {#each $notes.filter(n => n.parent_id === note.id).sort((a, b) => b.id - a.id) as child (child.id)}
+                  <svelte:self note={child} {reloadNotes} {setStatus} />
+                {/each}
+              </div>
+            {/if}
+          {/if}
+        </div>
       {/if}
     </div>
   </OverlayScrollbarsComponent>
 </div>
 
 <style>
+  * { box-sizing: border-box; }
+
   .note {
     display: flex;
     flex-direction: column;
@@ -242,13 +241,26 @@
     max-height: 550px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     transition: transform 0.2s, box-shadow 0.2s;
-    align-items: center;
   }
 
-  .note.editing textarea {
+  .note.category {
+    align-items: center;
+    max-height: 800px;
+    align-items: stretch;
+  }
+
+  .note.editing textarea, .note textarea {
     max-height: 550px;
     width: 100%;
     max-width: 100%;
+    color: #f6f6f6;
+    background: transparent;
+    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 400;
+    border: none;
+    outline: none;
   }
 
   .noteTitle {
@@ -270,7 +282,7 @@
   }
 
   #noteContentOuter {
-    margin-right: 15px;
+    padding: 0 15px;
   }
 
   #noteTitleBox {

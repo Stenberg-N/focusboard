@@ -426,8 +426,7 @@
   min-height: 0;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 20px;
-  width: 100%;
-  max-width: calc(100vw - 100px);
+  width: calc(100vw - 100px);
   padding: 10px;
   border: 1px solid cyan;
   overflow-y: auto;
