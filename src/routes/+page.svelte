@@ -12,7 +12,7 @@
   import type { Store } from '@tauri-apps/plugin-store';
   import { dndzone, type DndEvent, type Item as DndItem } from 'svelte-dnd-action';
   import LoaderOverlay from '../lib/loaderOverlay.svelte';
-  import BasicNote from '../lib/Note.svelte';
+  import ComponentNote from '../lib/componentNote.svelte';
   import type { Note, Tab } from '../types/types';
 
   const notes = writable<Note[]>([]);
@@ -306,6 +306,14 @@
     }
   }
 
+  function transformElement(element: HTMLElement | undefined) {
+    if (element) {
+      element.style.outline = '#723fffd0 solid 2px';
+      element.style.filter = 'brightness(70%)';
+      element.style.zIndex = '1000';
+    }
+  }
+
 </script>
 
 <main class="container">
@@ -330,6 +338,8 @@
         items: $topLevelNotes,
         type: 'top-level-note',
         flipDurationMs: 250,
+        dropTargetStyle: {},
+        transformDraggedElement: transformElement,
         morphDisabled: true,
         centreDraggedOnCursor: true }}
         on:consider={handleDnd}
@@ -337,11 +347,11 @@
       >
         {#if currentTabId}
           {#each $topLevelNotes as note (note.id)}
-            <BasicNote
+            <ComponentNote
               {note}
               setStatus={(msg) => (statusBar.textContent = msg)}
               reloadNotes={loadNotes}
-            ></BasicNote>
+            ></ComponentNote>
           {/each}
         {:else}
           <p>No tabs available.</p>

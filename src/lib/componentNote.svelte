@@ -151,6 +151,14 @@
     }
   }
 
+  function transformElement(element: HTMLElement | undefined) {
+    if (element) {
+      element.style.outline = '#723fffd0 solid 2px';
+      element.style.filter = 'brightness(70%)';
+      element.style.zIndex = '1000';
+    }
+  }
+
 </script>
 
 <div
@@ -238,6 +246,8 @@
                 items: $childNotes,
                 type: `sub-notes-${note.id}`,
                 flipDurationMs: 250,
+                dropTargetStyle: {},
+                transformDraggedElement: transformElement,
                 morphDisabled: true,
                 centreDraggedOnCursor: true }}
                 on:consider={handleDnd}
