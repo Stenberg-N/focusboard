@@ -155,7 +155,8 @@ async fn main() {
             commands::create_tab,
             commands::update_tab,
             commands::delete_tab,
-            commands::backup_database
+            commands::backup_database,
+            commands::reorder_notes,
         ])
         .run(context)
         .expect("Error while running tauri application");

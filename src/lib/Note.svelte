@@ -5,22 +5,15 @@
   import { slide } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
   import { getContext } from 'svelte';
-  import type { Writable } from 'svelte/store';
+  import { writable, type Writable } from 'svelte/store';
+  import { dndzone, type DndEvent, type Item as DndItem } from 'svelte-dnd-action';
   import type { Note } from '../types/types';
 
   const noteOpenStates = getContext<Writable<Record<number, boolean>>>('noteOpenStates');
   const notes = getContext<Writable<Note[]>>('notes');
+  const childNotes = writable<Note[]>([]);
 
-  export let note: {
-    id: number;
-    title: string;
-    content: string;
-    tab_id: number | null;
-    parent_id: number | null;
-    note_type: string;
-    created_at: string;
-    updated_at: string;
-  };
+  export let note: Note;
 
   let open: boolean;
 
@@ -39,6 +32,12 @@
   let hasSavedState = false;
 
   $: collapseOpen = isEditing || open;
+
+  $: childNotes.set(
+    $notes
+      .filter(n => n.parent_id === note.id)
+      .sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
+  );
 
   async function addChild() {
     try {
@@ -133,6 +132,25 @@
     noteOpenStates.update(states => ({ ...states, [note.id]: isOpen }));
   }
 
+  function handleDnd(e: CustomEvent<DndEvent<DndItem>>) {
+    childNotes.set(e.detail.items as Note[]);
+  }
+
+  async function handleDndFinalize(e: CustomEvent<DndEvent<DndItem>>) {
+    childNotes.set(e.detail.items as Note[]);
+
+    const orderedIds = e.detail.items.map(n => n.id);
+
+    try {
+      await invoke('reorder_notes', { noteIds: orderedIds });
+      setStatus('Sub-notes reordered successfully');
+    } catch (error) {
+      console.error("Failed to reorder sub-notes:", error);
+      setStatus(`Failed to reorder sub-notes: ${error}`);
+      await reloadNotes();
+    }
+  }
+
 </script>
 
 <div
@@ -147,6 +165,7 @@
     <small>Last edited: {note.updated_at}</small>
     <small>Note ID: {note.id}</small>
     <small>Tab ID: {note.tab_id}</small>
+    <small>Order ID: {note.order_id}</small>
     <div id="noteControls">
       {#if isCategory}
         <button on:click={toggle} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
@@ -215,8 +234,16 @@
             {#if !isCategory}
               <p class="noteContent">{note.content || 'No content'}</p>
             {:else if isCategory}
-              <div class="subNotes">
-                {#each $notes.filter(n => n.parent_id === note.id).sort((a, b) => b.id - a.id) as child (child.id)}
+              <div class="subNotes" use:dndzone={{
+                items: $childNotes,
+                type: `sub-notes-${note.id}`,
+                flipDurationMs: 250,
+                morphDisabled: true,
+                centreDraggedOnCursor: true }}
+                on:consider={handleDnd}
+                on:finalize={handleDndFinalize}
+              >
+                {#each $childNotes as child (child.id)}
                   <svelte:self note={child} {reloadNotes} {setStatus} />
                 {/each}
               </div>
@@ -243,10 +270,17 @@
     transition: transform 0.2s, box-shadow 0.2s;
   }
 
+  .note::after {
+    content: "";
+    visibility: hidden;
+    display: block;
+    width: 1000px;
+    height: 0;
+  }
+
   .note.category {
     align-items: center;
     max-height: 800px;
-    align-items: stretch;
   }
 
   .note.editing textarea, .note textarea {
@@ -297,7 +331,7 @@
 
   .subNotes {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(370px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(370px, 1000px));
     gap: 16px;
     margin-top: 16px;
     padding: 12px;

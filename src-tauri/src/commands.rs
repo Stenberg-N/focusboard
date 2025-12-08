@@ -17,6 +17,7 @@ pub struct Note {
     pub content: String,
     pub tab_id: Option<i64>,
     pub parent_id: Option<i64>,
+    pub order_id: Option<i64>,
     pub note_type: String,
     pub created_at: String,
     pub updated_at: String,
@@ -39,7 +40,7 @@ pub async fn get_notes(
         r#"
         SELECT * FROM notes
         WHERE tab_id IS NOT DISTINCT FROM ?
-        ORDER BY created_at DESC
+        ORDER BY order_id ASC
         "#,
     )
     .bind(tab_id)
@@ -62,17 +63,35 @@ pub async fn create_note(
     parent_id: Option<i64>,
     note_type: String,
 ) -> Result<Note, String> {
+    let row: Option<(Option<i64>,)> = sqlx::query_as(
+        r#"
+        SELECT MAX(order_id) FROM notes WHERE tab_id IS NOT DISTINCT FROM ? AND parent_id IS NOT DISTINCT FROM ?
+        "#,
+    )
+    .bind(tab_id)
+    .bind(parent_id)
+    .fetch_optional(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Database error: {:#}", e);
+        e.to_string()
+    })?;
+
+    let max_order = row.and_then(|r| r.0).unwrap_or(0);
+    let new_order = max_order + 1;
+
     let note = query_as::<_, Note>(
         r#"
-        INSERT INTO notes (title, content, tab_id, parent_id, note_type)
-        VALUES (?, ?, ?, ?, ?)
-        RETURNING id, title, content, tab_id, parent_id, note_type, created_at, updated_at
+        INSERT INTO notes (title, content, tab_id, parent_id, order_id, note_type)
+        VALUES (?, ?, ?, ?, ?, ?)
+        RETURNING id, title, content, tab_id, parent_id, order_id, note_type, created_at, updated_at
         "#,
     )
     .bind(&title)
     .bind(content)
     .bind(tab_id)
     .bind(parent_id)
+    .bind(new_order)
     .bind(note_type)
     .fetch_one(&*pool)
     .await
@@ -281,6 +300,43 @@ pub async fn backup_database() -> Result<(), String> {
         })?;
     }
     info!("Database backup successfully completed");
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn reorder_notes(
+    pool: State<'_, SqlitePool>,
+    note_ids: Vec<i64>
+) -> Result<(), String> {
+    let len = note_ids.len() as i64;
+    if len == 0 {
+        return Ok(());
+    }
+
+    let mut transaction = pool.begin().await.map_err(|e| {
+        error!("Failed to start transaction: {:#}", e);
+        "Failed to start transaction".to_string()
+    })?;
+
+    for (index, &id) in note_ids.iter().enumerate() {
+        let order_id = (index + 1) as i64;
+
+        sqlx::query("UPDATE notes SET order_id = ? WHERE id = ?")
+            .bind(order_id)
+            .bind(id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| {
+                error!("Failed to reorder note {}: {:#}", id, e);
+                "Failed to reorder notes".to_string()
+            })?;
+    }
+
+    transaction.commit().await.map_err(|e| {
+        error!("Failed to commit transaction: {:#}", e);
+        "Failed to commit transaction".to_string()
+    })?;
 
     Ok(())
 }

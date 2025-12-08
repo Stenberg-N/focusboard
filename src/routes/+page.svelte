@@ -10,12 +10,14 @@
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import { load } from '@tauri-apps/plugin-store';
   import type { Store } from '@tauri-apps/plugin-store';
+  import { dndzone, type DndEvent, type Item as DndItem } from 'svelte-dnd-action';
   import LoaderOverlay from '../lib/loaderOverlay.svelte';
   import BasicNote from '../lib/Note.svelte';
   import type { Note, Tab } from '../types/types';
 
   const notes = writable<Note[]>([]);
   const tabs = writable<Tab[]>([]);
+  const topLevelNotes = writable<Note[]>([]);
 
   let store: Store;
 
@@ -94,7 +96,7 @@
     if (statusBar) statusBar.textContent = "App setup complete";
   });
 
-  $: if (currentTabId !== previousTabId && currentTabId !== null && currentTabName !== previousTabName && currentTabName !== null && store) {
+  $: if (currentTabId !== previousTabId && currentTabId !== null && currentTabName !== null && store) {
     try {
       previousTabId = currentTabId;
       previousTabName = currentTabName;
@@ -140,23 +142,16 @@
     }
   }
 
-  function clearStaleOpenStates(validNoteIds: number[]) {
-    noteOpenStates.update(states => {
-      const newStates: Record<number, boolean> = {};
-      for (const id of validNoteIds) {
-        newStates[id] = states[id] ?? true;
-      }
-      return newStates;
-    });
-  }
-
   async function loadNotes() {
     try {
       const data = await invoke<Note[]>('get_notes', { tabId: currentTabId });
       notes.set(data);
 
-      const validIds = data.map(n => n.id);
-      clearStaleOpenStates(validIds);
+      topLevelNotes.set(
+        data
+          .filter(n => n.parent_id === null)
+          .sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
+      );
 
       if (statusBar) {
         statusBar.textContent = `Loaded notes on tab ${currentTabName} successfully`;
@@ -291,6 +286,26 @@
     contextTabName = tabName;
     contextMenu.show(event);
   }
+
+  function handleDnd(e: CustomEvent<DndEvent<DndItem>>) {
+    topLevelNotes.set(e.detail.items as Note[]);
+  }
+
+  async function handleDndFinalize(e: CustomEvent<DndEvent<DndItem>>) {
+    topLevelNotes.set(e.detail.items as Note[]);
+
+    const orderedIds = e.detail.items.map(n => n.id);
+
+    try {
+      await invoke('reorder_notes', { noteIds: orderedIds });
+      if (statusBar) statusBar.textContent = 'Notes reordered successfully';
+    } catch (error) {
+      console.error("Failed to reorder notes:", error);
+      if (statusBar) statusBar.textContent = `Failed to reorder notes: ${error}`;
+      await loadNotes();
+    }
+  }
+
 </script>
 
 <main class="container">
@@ -311,13 +326,21 @@
 
   <div id="middle">
     <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-      <div id="noteContainer">
+      <div id="noteContainer" use:dndzone={{
+        items: $topLevelNotes,
+        type: 'top-level-note',
+        flipDurationMs: 250,
+        morphDisabled: true,
+        centreDraggedOnCursor: true }}
+        on:consider={handleDnd}
+        on:finalize={handleDndFinalize}
+      >
         {#if currentTabId}
-          {#each $notes.filter(n => n.parent_id == null) as note (note.id)}
+          {#each $topLevelNotes as note (note.id)}
             <BasicNote
               {note}
-                setStatus={(msg) => (statusBar.textContent = msg)}
-                reloadNotes={loadNotes}
+              setStatus={(msg) => (statusBar.textContent = msg)}
+              reloadNotes={loadNotes}
             ></BasicNote>
           {/each}
         {:else}
