@@ -13,6 +13,7 @@ export type Note = {
 export type Tab = {
   id: number;
   name: string;
+  order_id: number;
   created_at: string;
   updated_at: string;
 }

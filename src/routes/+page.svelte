@@ -11,6 +11,8 @@
   import { load } from '@tauri-apps/plugin-store';
   import type { Store } from '@tauri-apps/plugin-store';
   import { dndzone, type DndEvent, type Item as DndItem } from 'svelte-dnd-action';
+  import { slide } from 'svelte/transition';
+  import { cubicInOut } from 'svelte/easing';
   import LoaderOverlay from '../lib/loaderOverlay.svelte';
   import ComponentNote from '../lib/componentNote.svelte';
   import type { Note, Tab } from '../types/types';
@@ -18,11 +20,14 @@
   const notes = writable<Note[]>([]);
   const tabs = writable<Tab[]>([]);
   const topLevelNotes = writable<Note[]>([]);
+  const reorderedTabs = writable<Tab[]>([]);
+  const uiVisibility = writable<Record<string, boolean>>({});
 
   let store: Store;
 
   const noteOpenStates = writable<Record<number, boolean>>({});
   setContext('noteOpenStates', noteOpenStates);
+  setContext('uiVisibility', uiVisibility);
   setContext('notes', notes);
 
   let contextMenu: ContextMenu;
@@ -47,6 +52,7 @@
     if ($tabs.length === 0) {
       const newTab = await invoke<Tab>('create_tab', { name: 'Untitled' });
       tabs.update((t: Tab[]) => [...t, newTab]);
+      reorderedTabs.update((t: Tab[]) => [...t, newTab]);
       currentTabId = newTab.id;
       currentTabName = newTab.name;
     }
@@ -185,6 +191,12 @@
     try {
       const data = await invoke<Tab[]>('get_tabs');
       tabs.set(data);
+
+      reorderedTabs.set(
+        data
+          .sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
+      );
+
       if (statusBar) {
         statusBar.textContent = `Loaded tabs successfully. Loaded the last tab you left on: ${currentTabName}`;
       }
@@ -200,6 +212,7 @@
     try {
       const newTab = await invoke<Tab>('create_tab', { name: 'New Tab' });
       tabs.update((t: Tab[]) => [...t, newTab]);
+      reorderedTabs.update((t: Tab[]) => [...t, newTab]);
       currentTabId = newTab.id;
       currentTabName = newTab.name;
       await loadNotes();
@@ -287,11 +300,11 @@
     contextMenu.show(event);
   }
 
-  function handleDnd(e: CustomEvent<DndEvent<DndItem>>) {
+  function handleDndNote(e: CustomEvent<DndEvent<DndItem>>) {
     topLevelNotes.set(e.detail.items as Note[]);
   }
 
-  async function handleDndFinalize(e: CustomEvent<DndEvent<DndItem>>) {
+  async function handleDndFinalizeNote(e: CustomEvent<DndEvent<DndItem>>) {
     topLevelNotes.set(e.detail.items as Note[]);
 
     const orderedIds = e.detail.items.map(n => n.id);
@@ -306,12 +319,38 @@
     }
   }
 
+  function handleDndTab(e: CustomEvent<DndEvent<Tab>>) {
+    reorderedTabs.set(e.detail.items);
+  }
+
+  async function handleDndFinalizeTab(e: CustomEvent<DndEvent<Tab>>) {
+    reorderedTabs.set(e.detail.items);
+
+    const orderedIds = e.detail.items.map(t => t.id);
+
+    try {
+      await invoke('reorder_tabs', { tabIds: orderedIds });
+      if (statusBar) statusBar.textContent = "Tabs reordered successfully";
+    } catch (error) {
+      console.error("Failed to reorder tabs:", error);
+      if (statusBar) statusBar.textContent = `Failed to reorder tabs: ${error}`;
+      await loadTabs();
+    }
+  }
+
   function transformElement(element: HTMLElement | undefined) {
     if (element) {
       element.style.outline = '#723fffd0 solid 2px';
       element.style.filter = 'brightness(70%)';
       element.style.zIndex = '1000';
     }
+  }
+
+  let tabBarIsOpen: boolean;
+  $: tabBarIsOpen = $uiVisibility['tabBar'] ?? true;
+
+  function tabBarToggle() {
+    uiVisibility.update((current) => ({ ...current, tabBar: !tabBarIsOpen }));
   }
 
 </script>
@@ -332,7 +371,7 @@
     <button on:click={backupDatabase}>Backup Database</button>
   </div>
 
-  <div id="middle">
+  <div id="middle" class:enlarged={!tabBarIsOpen}>
     <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
       <div id="noteContainer" use:dndzone={{
         items: $topLevelNotes,
@@ -342,8 +381,8 @@
         transformDraggedElement: transformElement,
         morphDisabled: true,
         centreDraggedOnCursor: true }}
-        on:consider={handleDnd}
-        on:finalize={handleDndFinalize}
+        on:consider={handleDndNote}
+        on:finalize={handleDndFinalizeNote}
       >
         {#if currentTabId}
           {#each $topLevelNotes as note (note.id)}
@@ -360,37 +399,52 @@
     </OverlayScrollbarsComponent>
   </div>
 
-  <div id="tabBar">
-    <button on:click={addTab}>Add Tab</button>
-    {#each $tabs as tab (tab.id)}
-      <button
-        role="textbox"
-        tabindex="0"
-        class="tab"
-        class:selected={currentTabId === tab.id}
-        on:click={() => selectTab(tab.id, tab.name)}
-        on:dblclick={() => startRename(tab)}
-        on:contextmenu={(event) => handleContextMenu(tab.id, tab.name, event)}
+  {#if tabBarIsOpen}
+    <div id="tabBar" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }}>
+      <button id="buttonAddTab" on:click={addTab}>Add Tab</button>
+      <div id="tabList" use:dndzone={{
+        items: $reorderedTabs,
+        type: 'tabs',
+        flipDurationMs: 250,
+        dropTargetStyle: {},
+        transformDraggedElement: transformElement,
+        morphDisabled: true,
+        centreDraggedOnCursor: true }}
+        on:consider={handleDndTab}
+        on:finalize={handleDndFinalizeTab}
       >
-        {#if editingTabId === tab.id}
-          <input
-            bind:this={inputElement}
-            bind:value={editingTabName}
-            on:blur={() => saveRename(tab)}
-            on:keydown={(e) => {
-              if (e.key === 'Enter') saveRename(tab);
-              if (e.key === 'Escape') cancelRename();
-            }}
-          />
-        {:else}
-          {tab.name || 'Untitled'}
-        {/if}
-      </button>
-    {/each}
-  </div>
+        {#each $reorderedTabs as tab (tab.id)}
+          <button
+            role="textbox"
+            tabindex="0"
+            class="tab"
+            class:selected={currentTabId === tab.id}
+            on:click={() => selectTab(tab.id, tab.name)}
+            on:dblclick={() => startRename(tab)}
+            on:contextmenu={(event) => handleContextMenu(tab.id, tab.name, event)}
+          >
+            {#if editingTabId === tab.id}
+              <input
+                bind:this={inputElement}
+                bind:value={editingTabName}
+                on:blur={() => saveRename(tab)}
+                on:keydown={(e) => {
+                  if (e.key === 'Enter') saveRename(tab);
+                  if (e.key === 'Escape') cancelRename();
+                }}
+              />
+            {:else}
+              {tab.name || 'Untitled'}
+            {/if}
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   <div id="statusBar">
     <span bind:this={statusBar}></span>
+    <button id="togglebutton" on:click={tabBarToggle}>{tabBarIsOpen ? 'v' : '^'}</button>
   </div>
 
   <ContextMenu bind:this={contextMenu}>
@@ -451,6 +505,12 @@
   flex-direction: column;
   align-items: center;
   border: 1px solid teal;
+  transition: bottom 200ms cubic-bezier(0.645, 0.045, 0.355, 1.000);
+  transition-delay: 100ms;
+}
+
+#middle.enlarged {
+  bottom: 20px;
 }
 
 #noteContainer {
@@ -476,17 +536,35 @@
   justify-content: left;
   width: 100%;
   height: 30px;
-  gap: 5px;
+  gap: 20px;
   border: 1px solid red;
   background-color: #222;
+}
+
+#togglebutton {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  width: 40px;
+  height: 20px;
+}
+
+#buttonAddTab {
+  width: 70px;
+  font-size: 12px;
+}
+
+#tabList {
+  display: flex;
+  margin: 0;
+  gap: 5px;
+  width: 100%;
 }
 
 .tab {
   text-align: left;
   direction: ltr;
-  cursor: pointer;
   min-width: 10px;
-  border: 1px solid green;
   padding: 3px;
 }
 
@@ -502,7 +580,7 @@
   left: 0;
   right: 0;
   justify-content: flex-start;
-  width: 100%;
+  width: calc(100% - 40px);
   height: 20px;
   background-color: #222;
   align-items: center;

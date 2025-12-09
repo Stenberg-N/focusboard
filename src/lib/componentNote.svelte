@@ -206,7 +206,7 @@
   <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
     <div id="noteContentOuter">
       {#if collapseOpen}
-        <div style="overflow: hidden;" transition:slide={{ duration: 400, easing: cubicInOut }}>
+        <div style="overflow: hidden;" transition:slide={{ delay: 100, duration: 400, easing: cubicInOut }}>
           {#if isEditing}
             {#if !isCategory}
               <textarea

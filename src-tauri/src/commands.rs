@@ -27,6 +27,7 @@ pub struct Note {
 pub struct Tab {
     pub id: i64,
     pub name: String,
+    pub order_id: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -155,7 +156,7 @@ pub async fn get_tabs(pool: State<'_, SqlitePool>) -> Result<Vec<Tab>, String> {
     let tabs = query_as::<_, Tab>(
         r#"
         SELECT * FROM tabs
-        ORDER BY id ASC
+        ORDER BY order_id ASC
         "#,
     )
     .fetch_all(&*pool)
@@ -170,14 +171,30 @@ pub async fn get_tabs(pool: State<'_, SqlitePool>) -> Result<Vec<Tab>, String> {
 
 #[tauri::command]
 pub async fn create_tab(pool: State<'_, SqlitePool>, name: String) -> Result<Tab, String> {
+    let row: Option<(Option<i64>,)> = sqlx::query_as(
+        r#"
+        SELECT MAX(order_id) FROM tabs
+        "#,
+    )
+    .fetch_optional(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Database error: {:#}", e);
+        "Database error".to_string()
+    })?;
+
+    let max_order = row.and_then(|r| r.0).unwrap_or(0);
+    let new_order = max_order + 1;
+
     let tab = query_as::<_, Tab>(
         r#"
-        INSERT INTO tabs (name)
-        VALUES (?)
-        RETURNING id, name, created_at, updated_at
+        INSERT INTO tabs (name, order_id)
+        VALUES (?, ?)
+        RETURNING id, name, order_id, created_at, updated_at
         "#,
     )
     .bind(&name)
+    .bind(new_order)
     .fetch_one(&*pool)
     .await
     .map_err(|e| {
@@ -330,6 +347,43 @@ pub async fn reorder_notes(
             .map_err(|e| {
                 error!("Failed to reorder note {}: {:#}", id, e);
                 "Failed to reorder notes".to_string()
+            })?;
+    }
+
+    transaction.commit().await.map_err(|e| {
+        error!("Failed to commit transaction: {:#}", e);
+        "Failed to commit transaction".to_string()
+    })?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn reorder_tabs(
+    pool: State<'_, SqlitePool>,
+    tab_ids: Vec<i64>
+) -> Result<(), String> {
+    let len = tab_ids.len() as i64;
+    if len == 0 {
+        return Ok(())
+    }
+
+    let mut transaction = pool.begin().await.map_err(|e| {
+        error!("Failed to start transaction: {:#}", e);
+        "Failed to start transaction".to_string()
+    })?;
+
+    for (index, &id) in tab_ids.iter().enumerate() {
+        let order_id = (index + 1) as i64;
+
+        sqlx::query("UPDATE tabs SET order_id = ? WHERE id = ?")
+            .bind(order_id)
+            .bind(id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| {
+                error!("Failed to reorder tab {}: {:#}", id, e);
+                "Failed to reorder tabs".to_string()
             })?;
     }
 
