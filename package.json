@@ -21,9 +21,7 @@
     "overlayscrollbars-react": "^0.5.6",
     "react": "^19.1.0",
     "react-contexify": "^6.0.0",
-    "react-dom": "^19.1.0",
-    "react-virtualized": "^9.22.6",
-    "react-window": "^2.2.3"
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
