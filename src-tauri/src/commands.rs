@@ -324,6 +324,7 @@ pub async fn backup_database() -> Result<(), String> {
 #[tauri::command]
 pub async fn reorder_notes(
     pool: State<'_, SqlitePool>,
+    tab_id: Option<i64>,
     note_ids: Vec<i64>
 ) -> Result<(), String> {
     let len = note_ids.len() as i64;
@@ -339,9 +340,10 @@ pub async fn reorder_notes(
     for (index, &id) in note_ids.iter().enumerate() {
         let order_id = (index + 1) as i64;
 
-        sqlx::query("UPDATE notes SET order_id = ? WHERE id = ?")
+        sqlx::query("UPDATE notes SET order_id = ? WHERE id = ? AND tab_id = ?")
             .bind(order_id)
             .bind(id)
+            .bind(tab_id)
             .execute(&mut *transaction)
             .await
             .map_err(|e| {
