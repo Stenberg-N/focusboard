@@ -160,6 +160,18 @@
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
+body.dragging .note:hover {
+  transform: none !important;
+}
+
+.drag-preview {
+  background: #2f2f2f;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  cursor: grabbing;
+}
+
 .note::after {
   content: "";
   visibility: hidden;

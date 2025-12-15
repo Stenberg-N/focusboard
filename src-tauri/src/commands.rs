@@ -361,6 +361,45 @@ pub async fn reorder_notes(
 }
 
 #[tauri::command]
+pub async fn reorder_child_notes(
+    pool: State<'_, SqlitePool>,
+    parent_id: Option<i64>,
+    note_ids: Vec<i64>
+) -> Result<(), String> {
+    let len = note_ids.len() as i64;
+    if len == 0 {
+        return Ok(());
+    }
+
+    let mut transaction = pool.begin().await.map_err(|e| {
+        error!("Failed to start transaction: {:#}", e);
+        "Failed to start transaction".to_string()
+    })?;
+
+    for (index, &id) in note_ids.iter().enumerate() {
+        let order_id = (index + 1) as i64;
+
+        sqlx::query("UPDATE notes SET order_id = ? WHERE id = ? AND parent_id = ?")
+            .bind(order_id)
+            .bind(id)
+            .bind(parent_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| {
+                error!("Failed to reorder child note {}: {:#}", id, e);
+                "Failed to reorder child notes".to_string()
+            })?;
+    }
+
+    transaction.commit().await.map_err(|e| {
+        error!("Failed to commit transaction: {:#}", e);
+        "Failed to commit transaction".to_string()
+    })?;
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn reorder_tabs(
     pool: State<'_, SqlitePool>,
     tab_ids: Vec<i64>

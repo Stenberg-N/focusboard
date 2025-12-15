@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, MeasuringStrategy, rectIntersection, UniqueIdentifier, DragOverEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -51,18 +51,21 @@ export const SortableNote = React.memo(function SortableNote({ note, reloadNotes
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: note.id, transition: { duration: 200, easing: 'ease' } });
+  } = useSortable({ id: `note-${note.id}`, transition: { duration: 200, easing: 'ease' } });
 
   const style = {
     transform: transform ? CSS.Transform.toString({ x: transform.x, y: transform.y, scaleX: 1, scaleY: 1}) : undefined,
-    transition,
+    transition: isDragging ? undefined : transition,
+    opacity: isDragging ? 0 : 1,
     outline: isDragging ? '#723fffd0 solid 2px' : 'none',
+    pointerEvents: isDragging ? 'none' : 'auto' as React.CSSProperties['pointerEvents'],
     zIndex: isDragging ? 1000 : 'auto',
+    willChange: "transform",
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
-      <Note note={note} reloadNotes={reloadNotes} setStatus={setStatus} dragHandleProps={listeners} />
+    <div ref={setNodeRef} style={style} {...attributes} className={isDragging ? 'dragging' : ''}>
+      <Note note={note} reloadNotes={reloadNotes} setStatus={setStatus} dragHandleProps={listeners} isDragging={isDragging} />
     </div>
   );
 });
@@ -72,9 +75,10 @@ interface NoteProps {
   reloadNotes: () => Promise<void>;
   setStatus?: (message: string) => void;
   dragHandleProps?: any;
+  isDragging?: boolean;
 }
 
-const Note = ({ note, dragHandleProps, reloadNotes, setStatus = () => {} }: NoteProps) => {
+const Note = ({ note, dragHandleProps, reloadNotes, setStatus = () => {}, isDragging = false }: NoteProps) => {
   const { notes, setNotes, childNotesByParent, noteOpenStates, setNoteOpenStates } = useApp();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -82,10 +86,17 @@ const Note = ({ note, dragHandleProps, reloadNotes, setStatus = () => {} }: Note
   const [editingContent, setEditingContent] = useState(note.content);
   const [originalOpenState, setOriginalOpenState] = useState(false);
   const [hasSavedState, setHasSavedState] = useState(false);
+  const [activeNoteId, setActiveNoteId] = useState<number | null>(null);
+
+  const lastOverId = useRef<UniqueIdentifier | null>(null);
 
   const open = noteOpenStates[note.tab_id ?? -1]?.[note.id] ?? true;
   const isCategory = note.note_type === 'categorical';
   const isOpen = isEditing || open;
+  const variants = {
+    open: { height: 'auto' },
+    closed: { height: 0 }
+  };
 
   const childNotes = childNotesByParent.get(note.id) ?? [];
 
@@ -177,39 +188,68 @@ const Note = ({ note, dragHandleProps, reloadNotes, setStatus = () => {} }: Note
     })
   );
 
-  const handleDragEnd = async (event: any) => {
-    const { active, over } = event;
-    if (active.id !== over?.id) {
-      const oldIndex = childNotes.findIndex((n) => n.id === active.id);
-      const newIndex = childNotes.findIndex((n) => n.id === over.id);
-      const newOrder = arrayMove(childNotes, oldIndex, newIndex);
-      setNotes((prev: NoteType[]) => {
-        const updated = prev.map((n) => {
-          if (n.parent_id === note.id) {
-            const found = newOrder.find((c) => c.id === n.id);
-            if (found) {
-              return { ...n, order_id: newOrder.indexOf(found) + 1 };
-            }
-          }
-          return n;
-        });
-        return updated;
-      });
+  const NoteDragPreview = ({ note }: { note: NoteType }) => {
+    return (
+      <div className="note drag-preview">
+        <h4>{note.title}</h4>
+      </div>
+    );
+  }
 
-      const orderedIds = newOrder.map((n) => n.id);
-      try {
-        await invoke('reorder_notes', { noteIds: orderedIds });
-        setStatus('Sub-notes reordered successfully');
-      } catch (error) {
-        console.error(error)
-        setStatus(`Failed to reorder sub-notes: ${error}`);
-        await reloadNotes();
-      }
+  const handleDragOver = (event: DragOverEvent) => {
+    if (event.over) {
+      lastOverId.current = event.over.id;
+    }
+  }
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+
+    if (typeof active.id === "string" && active.id.startsWith("note-")) {
+      setActiveNoteId(Number(active.id.replace("note-", "")));
+    }
+  };
+
+  const handleDragEnd = async (event: any) => {
+    setActiveNoteId(null);
+
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const childActiveId = Number(active.id.replace("note-", ""));
+    const childOverId = Number(over.id.replace("note-", ""));
+
+    const oldIndex = childNotes.findIndex((n) => n.id === childActiveId);
+    const newIndex = childNotes.findIndex((n) => n.id === childOverId);
+    const newOrder = arrayMove(childNotes, oldIndex, newIndex);
+
+    const orderedIds = newOrder.map((n) => n.id);
+
+    setNotes((prev: NoteType[]) => {
+      const updated = prev.map((n) => {
+        if (n.parent_id === note.id) {
+          const found = newOrder.find((c) => c.id === n.id);
+          if (found) {
+            return { ...n, order_id: newOrder.indexOf(found) + 1 };
+          }
+        }
+        return n;
+      });
+      return updated;
+    });
+
+    try {
+      await invoke('reorder_child_notes', { parentId: note.id, noteIds: orderedIds });
+      setStatus('Sub-notes reordered successfully');
+    } catch (error) {
+      console.error(error)
+      setStatus(`Failed to reorder sub-notes: ${error}`);
+      await reloadNotes();
     }
   };
 
   return (
-    <div ref={editRef} className={`note ${isCategory ? 'category' : ''} ${isEditing ? 'editing' : ''}`} onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(); }} role="article">
+    <div ref={editRef} className={`note ${isCategory ? 'category' : ''} ${isEditing ? 'editing' : ''} ${isDragging ? 'dragging' : ''}`} onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(); }} role="article">
       <div id="noteTitleBox">
         <div className="noteDragHandle" {...dragHandleProps}>
           Drag
@@ -221,20 +261,20 @@ const Note = ({ note, dragHandleProps, reloadNotes, setStatus = () => {} }: Note
         <div id="noteControls">
           {isCategory ? (
             <>
-              <button onClick={toggle} disabled={isEditing}>
+              <button onClick={toggle} disabled={isEditing || isDragging}>
                 {open ? 'Hide' : 'Show'}
               </button>
-              <button onClick={addChild}>Add Child</button>
-              <button onClick={() => setIsEditing(true)} disabled={isEditing}>Edit</button>
-              <button onClick={removeNote}>Delete</button>
+              <button onClick={addChild} disabled={isDragging}>Add Child</button>
+              <button onClick={() => setIsEditing(true)} disabled={isEditing || isDragging}>Edit</button>
+              <button onClick={removeNote} disabled={isDragging}>Delete</button>
             </>
           ) : (
             <>
-              <button onClick={toggle} disabled={isEditing}>
+              <button onClick={toggle} disabled={isEditing || isDragging}>
                 {open ? 'Hide' : 'Show'}
               </button>
-              <button onClick={() => setIsEditing(true)} disabled={isEditing}>Edit</button>
-              <button onClick={removeNote}>Delete</button>
+              <button onClick={() => setIsEditing(true)} disabled={isEditing || isDragging}>Edit</button>
+              <button onClick={removeNote} disabled={isDragging}>Delete</button>
             </>
           )}
         </div>
@@ -257,14 +297,15 @@ const Note = ({ note, dragHandleProps, reloadNotes, setStatus = () => {} }: Note
         )}
       </div>
 
-      <OverlayScrollbarsComponent options={{ scrollbars: { autoHide: 'move', autoHideDelay: 800, theme: 'os-theme-dark' }, overflow: { x: 'hidden' } }}>
+      <OverlayScrollbarsComponent options={{ scrollbars: { autoHide: 'move', autoHideDelay: 800, theme: 'os-theme-dark' }, overflow: { x: 'hidden' }, update: { ignoreMutation: () => isDragging } }}>
         <div id="noteContentOuter">
           <AnimatePresence>
             {isOpen && (
               <motion.div
-                initial={{ height: 0 }}
-                animate={{ height: 'auto' }}
-                exit={{ height: 0 }}
+                variants={variants}
+                initial={isDragging ? undefined : "closed"}
+                animate={isDragging ? undefined : "open"}
+                exit={isDragging ? undefined : "closed"}
                 transition={{ duration: 0.4, ease: 'easeInOut' }}
                 style={{ overflow: 'hidden' }}
               >
@@ -298,16 +339,27 @@ const Note = ({ note, dragHandleProps, reloadNotes, setStatus = () => {} }: Note
                     {isCategory && (
                       <DndContext
                         sensors={sensors}
-                        collisionDetection={closestCenter}
+                        collisionDetection={rectIntersection}
+                        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
                         onDragEnd={handleDragEnd}
                       >
-                        <SortableContext items={childNotes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
+                        <SortableContext items={childNotes.map((n) => `note-${n.id}`)} strategy={verticalListSortingStrategy}>
                           <div className="subNotes">
                             {childNotes.map((child) => (
                               <SortableNote key={child.id} note={child} reloadNotes={reloadNotes} setStatus={setStatus} />
                             ))}
                           </div>
                         </SortableContext>
+
+                        <DragOverlay dropAnimation={null}>
+                            {activeNoteId ? (
+                              <NoteDragPreview
+                                note={childNotes.find((n) => n.id === activeNoteId)!}
+                              />
+                            ) : null}
+                        </DragOverlay>
                       </DndContext>
                     )}
                   </>

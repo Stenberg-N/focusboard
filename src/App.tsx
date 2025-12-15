@@ -6,7 +6,7 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import { Store } from '@tauri-apps/plugin-store';
 import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, UniqueIdentifier, MeasuringStrategy, DragEndEvent, DragOverEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
 import { arrayMove, horizontalListSortingStrategy, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -67,7 +67,7 @@ function SortableTabWrapper({
   saveRename,
   inputRef
 }: SortableTabWrapperProps) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tab.id });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: `tab-${tab.id}` });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -126,9 +126,11 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState('');
   const [showOverlay, setShowOverlay] = useState(false);
   const [store, setStore] = useState<any>(null);
+  const [activeNoteId, setActiveNoteId] = useState<number | null>(null);
 
   const statusBarRef = useRef<HTMLSpanElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastOverId = useRef<UniqueIdentifier | null>(null);
 
   const { show } = useContextMenu({ id: MENU_ID });
 
@@ -392,12 +394,59 @@ export default function App() {
 
   };
 
+  const isNoteId = (id: UniqueIdentifier): id is string => typeof id === "string" && id.startsWith("note-");
+  const isTabId = (id: UniqueIdentifier): id is string => typeof id === "string" && id.startsWith("tab-");
+
+  const NoteDragPreview = ({ note }: { note: NoteType }) => {
+    return (
+      <div className="note drag-preview">
+        <h4>{note.title}</h4>
+      </div>
+    );
+  }
+
+  const handleDragOver = (event: DragOverEvent) => {
+    if (event.over) {
+      lastOverId.current = event.over.id;
+    }
+  }
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+
+    if (typeof active.id === "string" && active.id.startsWith("note-")) {
+      setActiveNoteId(Number(active.id.replace("note-", "")));
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveNoteId(null);
+
+    const { active, over } = event;
+    const overId = over?.id ?? lastOverId.current;
+
+    if (!overId || active.id == overId) return;
+
+    if (isNoteId(active.id) && isNoteId(overId)) {
+      handleDragEndNotes(event);
+      return;
+    }
+
+    if (isTabId(active.id) && isTabId(overId)) {
+      handleDragEndTabs(event);
+      return;
+    }
+  }
+
   const handleDragEndNotes = async (event: any) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = topLevelNotes.findIndex(n => n.id === active.id);
-    const newIndex = topLevelNotes.findIndex(n => n.id === over.id);
+    const noteActiveId = Number(active.id.replace("note-", ""));
+    const noteOverId = Number(over.id.replace("note-", ""));
+
+    const oldIndex = topLevelNotes.findIndex(n => n.id === noteActiveId);
+    const newIndex = topLevelNotes.findIndex(n => n.id === noteOverId);
     const newOrder = arrayMove(topLevelNotes, oldIndex, newIndex);
 
     const ids = newOrder.map(n => n.id);
@@ -431,8 +480,11 @@ export default function App() {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = tabs.findIndex(t => t.id === active.id);
-    const newIndex = tabs.findIndex(t => t.id === over.id);
+    const tabActiveId = Number(active.id.replace("tab-", ""));
+    const tabOverId = Number(over.id.replace("tab-", ""));
+
+    const oldIndex = tabs.findIndex(t => t.id === tabActiveId);
+    const newIndex = tabs.findIndex(t => t.id === tabOverId);
     const newOrder = arrayMove(tabs, oldIndex, newIndex);
 
     const ids = newOrder.map(t => t.id);
@@ -477,17 +529,16 @@ export default function App() {
         <button onClick={backupDatabase}>Backup Database</button>
       </div>
 
+    <DndContext sensors={sensors} collisionDetection={closestCenter} measuring={{ droppable: { strategy: MeasuringStrategy.Always } }} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <div id="middle" className={!tabBarIsOpen ? 'enlarged' : ''}>
         <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move', autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: 'hidden' } }}>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndNotes}>
-            <SortableContext items={topLevelNotes.map(n => n.id)} strategy={rectSortingStrategy}>
-              <div id="noteContainer">
-                {currentTabId ? topLevelNotes.map(note => (
-                  <SortableNote key={note.id} note={note} reloadNotes={reloadNotes} setStatus={setStatus} />
-                )) : <p>No tabs available.</p>}
-              </div>
-            </SortableContext>
-          </DndContext>
+          <SortableContext items={topLevelNotes.map(n => `note-${n.id}`)} strategy={rectSortingStrategy}>
+            <div id="noteContainer">
+              {currentTabId ? topLevelNotes.map(note => (
+                <SortableNote key={note.id} note={note} reloadNotes={reloadNotes} setStatus={setStatus} />
+              )) : <p>No tabs available.</p>}
+            </div>
+          </SortableContext>
         </OverlayScrollbarsComponent>
       </div>
 
@@ -501,35 +552,41 @@ export default function App() {
             id="tabBar"
           >
             <button id="buttonAddTab" onClick={addTab}>Add Tab</button>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndTabs}>
-              <SortableContext items={tabs.map(t => t.id)} strategy={horizontalListSortingStrategy}>
-                <div id="tabList">
-                  {tabs.map(tab => (
-                    <SortableTabWrapper
-                      key={tab.id}
-                      tab={tab}
-                      isSelected={currentTabId === tab.id}
-                      onSelect={() => {
-                        console.log("selected tab:", tab.id);
-                        setCurrentTabId(tab.id);
-                        setCurrentTabName(tab.name);
-                      }}
-                      onDoubleClick={() => startRename(tab)}
-                      onContextMenu={handleTabContext}
-                      editingTabId={editingTabId}
-                      editingTabName={editingTabName}
-                      setEditingTabId={setEditingTabId}
-                      setEditingTabName={setEditingTabName}
-                      saveRename={saveRename}
-                      inputRef={inputRef}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
+            <SortableContext items={tabs.map(t => `tab-${t.id}`)} strategy={horizontalListSortingStrategy}>
+              <div id="tabList">
+                {tabs.map(tab => (
+                  <SortableTabWrapper
+                    key={tab.id}
+                    tab={tab}
+                    isSelected={currentTabId === tab.id}
+                    onSelect={() => {
+                      console.log("selected tab:", tab.id);
+                      setCurrentTabId(tab.id);
+                      setCurrentTabName(tab.name);
+                    }}
+                    onDoubleClick={() => startRename(tab)}
+                    onContextMenu={handleTabContext}
+                    editingTabId={editingTabId}
+                    editingTabName={editingTabName}
+                    setEditingTabId={setEditingTabId}
+                    setEditingTabName={setEditingTabName}
+                    saveRename={saveRename}
+                    inputRef={inputRef}
+                  />
+                ))}
+              </div>
+            </SortableContext>
           </motion.div>
         )}
       </AnimatePresence>
+      <DragOverlay dropAnimation={null}>
+        {activeNoteId ? (
+          <NoteDragPreview
+            note={topLevelNotes.find(n => n.id === activeNoteId)!}
+          />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
 
       <div id="statusBar">
         <span ref={statusBarRef}>{statusMessage}</span>

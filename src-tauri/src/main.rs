@@ -158,6 +158,7 @@ async fn main() {
             commands::backup_database,
             commands::reorder_notes,
             commands::reorder_tabs,
+            commands::reorder_child_notes,
         ])
         .run(context)
         .expect("Error while running tauri application");
