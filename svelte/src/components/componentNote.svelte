@@ -2,50 +2,52 @@
   import { invoke } from '@tauri-apps/api/core';
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import { slide } from 'svelte/transition';
+  import ComponentNote from './componentNote.svelte';
   import { cubicInOut } from 'svelte/easing';
-  import { getContext } from 'svelte';
-  import { writable, type Writable } from 'svelte/store';
   import { dndzone, type DndEvent, type Item as DndItem } from 'svelte-dnd-action';
 
   import type { Note } from '../types/types';
   import 'overlayscrollbars/overlayscrollbars.css';
   import '../routes/app.css';
 
-  const noteOpenStates = getContext<Writable<Record<number, boolean>>>('noteOpenStates');
-  const notes = getContext<Writable<Note[]>>('notes');
-  const childNotes = writable<Note[]>([]);
+  let {
+    note,
+    reloadNotes,
+    setStatus,
+    notes,
+    noteOpenStates = $bindable<Record<number, boolean>>()
+  }: {
+    note: Note;
+    reloadNotes: () => void;
+    setStatus: (msg: string) => void;
+    notes: Note[];
+    noteOpenStates: Record<number, boolean>;
+  } = $props();
 
-  export let note: Note;
+  let childNotes = $state<Note[]>([]);
+  let previewChildNotes = $state<Note[] | null>(null);
 
-  let open: boolean;
+  $effect(() => {
+    childNotes = notes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
+  });
 
-  $: open = $noteOpenStates[note.id] ?? true;
+  let open = $derived(noteOpenStates[note.id] ?? true);
 
-  export let reloadNotes: () => Promise<void>;
-  export let setStatus: (msg: string) => void = () => {};
-
-  let isEditing = false;
-  let editingTitle = '';
-  let editingContent = '';
+  let isEditing = $state<boolean>(false);
+  let editingTitle = $state('');
+  let editingContent = $state('');
 
   const isCategory = note.note_type === 'categorical';
 
   let originalOpenState = false;
   let hasSavedState = false;
 
-  $: collapseOpen = isEditing || open;
-
-  $: childNotes.set(
-    $notes
-      .filter(n => n.parent_id === note.id)
-      .sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
-  );
+  let collapseOpen = $derived(isEditing || open);
 
   async function addChild() {
     try {
       const newNote = await invoke<typeof note>('create_note', { title: 'Untitled', content: '', tabId: note.tab_id, noteType: 'basic', parentId: note.id });
-      notes.update((n: Note[]) => [...n, newNote])
-      noteOpenStates.update(states => ({ ...states, [newNote.id]: (open = true) }));
+      noteOpenStates = { ...noteOpenStates, [newNote.id]: true };
 
       await reloadNotes();
 
@@ -69,7 +71,7 @@
       await invoke('update_note', { id: note.id, title: editingTitle, content: editingContent || '' });
 
       isEditing = false;
-      noteOpenStates.update(states => ({ ...states, [note.id]: (open = true) }));
+      noteOpenStates = { ...noteOpenStates, [note.id]: true };
 
       await reloadNotes();
 
@@ -84,7 +86,7 @@
     isEditing = false;
 
     if (hasSavedState) {
-      noteOpenStates.update(states => ({ ...states, [note.id]: originalOpenState }));
+      noteOpenStates = { ...noteOpenStates, [note.id]: originalOpenState };
       hasSavedState = false;
     }
   }
@@ -130,27 +132,64 @@
   }
 
   function toggle() {
-    const isOpen = !(open ?? true);
-    noteOpenStates.update(states => ({ ...states, [note.id]: isOpen }));
+    const isOpen = !(noteOpenStates[note.id] ?? true);
+    noteOpenStates[note.id] = isOpen;
   }
+
+  let pendingChildNoteUpdate: { ids: number[]; tabId: number | null; parentId: number } | null = null;
+  let areChildNotesSyncing = false;
 
   function handleDnd(e: CustomEvent<DndEvent<DndItem>>) {
-    childNotes.set(e.detail.items as Note[]);
+    previewChildNotes = [...e.detail.items] as Note[];
   }
 
-  async function handleDndFinalize(e: CustomEvent<DndEvent<DndItem>>) {
-    childNotes.set(e.detail.items as Note[]);
+  function handleDndFinalize(e: CustomEvent<DndEvent<DndItem>>) {
+    previewChildNotes = null;
+    const newItems = [...e.detail.items];
+    const orderedIds = newItems.map(n => n.id);
 
-    const orderedIds = e.detail.items.map(n => n.id);
+    pendingChildNoteUpdate = { ids: orderedIds, tabId: note.tab_id, parentId: note.id };
 
-    try {
-      await invoke('reorder_notes', { noteIds: orderedIds });
-      setStatus('Sub-notes reordered successfully');
-    } catch (error) {
-      console.error("Failed to reorder sub-notes:", error);
-      setStatus(`Failed to reorder sub-notes: ${error}`);
-      await reloadNotes();
+    if (!areChildNotesSyncing) {
+      processPendingChildNoteUpdate();
     }
+  }
+
+  async function processPendingChildNoteUpdate() {
+    if (!pendingChildNoteUpdate) {
+      areChildNotesSyncing = false;
+      return;
+    }
+
+    areChildNotesSyncing = true;
+
+    const currentBatch = pendingChildNoteUpdate;
+    pendingChildNoteUpdate = null;
+
+    let attempt = 0;
+    const maxRetries = 3;
+
+    while (attempt <= maxRetries) {
+      try {
+        await invoke('reorder_notes', { noteIds: currentBatch.ids, tabId: currentBatch.tabId, parentId: currentBatch.parentId });
+
+        setStatus('Sub-notes reordered successfully');
+        break;
+      } catch (error) {
+        console.error("Failed to reorder sub-notes:", error);
+
+        if (attempt >= maxRetries) {
+          await reloadNotes();
+          setStatus(`Failed to reorder sub-notes! Retrying. Error: ${error}`);
+          break;
+        }
+        await new Promise(r => setTimeout(r, 200 * Math.pow(2, attempt)));
+        attempt++;
+      }
+    }
+
+    areChildNotesSyncing = false;
+    processPendingChildNoteUpdate();
   }
 
   function transformElement(element: HTMLElement | undefined) {
@@ -167,7 +206,7 @@
   class:category={isCategory}
   class:editing={isEditing}
   role="article"
-  on:dblclick|stopPropagation={startEdit}
+  ondblclick={e => { e.stopPropagation(); startEdit(); }}
   use:clickOutside
 >
   <div id="noteTitleBox">
@@ -175,23 +214,24 @@
     <small>Note ID: {note.id}</small>
     <small>Tab ID: {note.tab_id}</small>
     <small>Order ID: {note.order_id}</small>
+    <small>Parent ID: {note.parent_id}</small>
     <div id="noteControls">
       {#if isCategory}
-        <button on:click={toggle} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
-        <button on:click|stopPropagation={addChild}>Add Note</button>
-        <button on:click={startEdit}>Edit</button>
-        <button on:click={removeNote}>Delete</button>
+        <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
+        <button onclick={addChild} ondblclick={e => { e.stopPropagation(); }}>Add Note</button>
+        <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }}>Edit</button>
+        <button onclick={removeNote} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
       {:else if !isCategory}
-        <button on:click={toggle} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
-        <button on:click={startEdit}>Edit</button>
-        <button on:click={removeNote}>Delete</button>
+        <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
+        <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }}>Edit</button>
+        <button onclick={removeNote} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
       {/if}
     </div>
     {#if isEditing}
       <input
         bind:value={editingTitle}
         placeholder="Title | Enter to save"
-        on:keydown={(e) => {
+        onkeydown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             saveEdit();
@@ -214,7 +254,7 @@
                 bind:value={editingContent}
                 placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
                 rows="16"
-                on:keydown={(e) => {
+                onkeydown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     saveEdit();
@@ -228,14 +268,14 @@
               >
               </textarea>
               <div class="edit-actions">
-                <button on:click={saveEdit}>Save</button>
-                <button on:click={cancelEdit}>Cancel</button>
+                <button onclick={saveEdit}>Save</button>
+                <button onclick={cancelEdit}>Cancel</button>
                 <small>Press Esc to cancel | Press Enter or click outside to save</small>
               </div>
             {:else if isCategory}
               <div class="edit-actions">
-                <button on:click={saveEdit}>Save</button>
-                <button on:click={cancelEdit}>Cancel</button>
+                <button onclick={saveEdit}>Save</button>
+                <button onclick={cancelEdit}>Cancel</button>
                 <small>Press Esc to cancel | Press Enter or click outside to save</small>
               </div>
             {/if}
@@ -244,19 +284,21 @@
               <p class="noteContent">{note.content || 'No content'}</p>
             {:else if isCategory}
               <div class="subNotes" use:dndzone={{
-                items: $childNotes,
+                items: previewChildNotes ?? childNotes,
                 type: `sub-notes-${note.id}`,
                 flipDurationMs: 250,
                 dropTargetStyle: {},
                 transformDraggedElement: transformElement,
                 morphDisabled: true,
                 centreDraggedOnCursor: true }}
-                on:consider={handleDnd}
-                on:finalize={handleDndFinalize}
+                onconsider={handleDnd}
+                onfinalize={handleDndFinalize}
               >
-                {#each $childNotes as child (child.id)}
-                  <svelte:self note={child} {reloadNotes} {setStatus} />
-                {/each}
+                {#key childNotes.map(n => n.id).join('-')}
+                  {#each (previewChildNotes ?? childNotes) as child (child.id)}
+                    <ComponentNote note={child} {reloadNotes} {setStatus} {notes} {noteOpenStates} />
+                  {/each}
+                {/key}
               </div>
             {/if}
           {/if}

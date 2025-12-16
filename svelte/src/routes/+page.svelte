@@ -2,7 +2,6 @@
   import ContextMenu, { Item } from 'svelte-contextmenu';
   import { onMount, setContext } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import { writable } from 'svelte/store';
   import { flip } from 'svelte/animate';
   import { listen } from '@tauri-apps/api/event';
   import { appLogDir } from '@tauri-apps/api/path';
@@ -21,115 +20,135 @@
   import './app.css';
   import 'overlayscrollbars/overlayscrollbars.css';
 
-  const notes = writable<Note[]>([]);
-  const tabs = writable<Tab[]>([]);
-  const uiVisibility = writable<Record<string, boolean>>({});
-  const previewNotes = writable<Note[] | null>(null);
-  const previewTabs = writable<Tab[] | null>(null);
+  let notes = $state<Note[]>([]);
+  let tabs = $state<Tab[]>([]);
+  let uiVisibility = $state({ tabBar: true, });
+  let topLevelNotes = $state<Note[]>([]);
+  let previewNotes = $state<Note[] | null>(null);
+  let previewTabs = $state<Tab[] | null>(null);
 
-  let store: Store;
+  let noteOpenStates = $state<Record<number, boolean>>({});
+  setContext('noteOpenStates', () => noteOpenStates);
+  setContext('uiVisibility', () => uiVisibility);
+  setContext('notes', () => notes);
 
-  const noteOpenStates = writable<Record<number, boolean>>({});
-  setContext('noteOpenStates', noteOpenStates);
-  setContext('uiVisibility', uiVisibility);
-  setContext('notes', notes);
+  let store = $state<Store>();
+  let hydrated = $state(false);
 
   let contextMenu: ContextMenu;
 
-  let currentTabId: number | null = null;
-  let currentTabName: string | null = null;
-  let previousTabId: number | null = null;
-  let previousTabName: string | null = null;
-  let editingTabId: number | null = null;
-  let contextTabId: number | null = null;
-  let contextTabName: string | null = null;
-  let editingTabName: string = '';
+  let currentTabId = $state<number | null>(null);
+  let currentTabName = $state<string | null>(null);
+  let previousTabId = $state<number | null>(null);
+  let previousTabName = $state<string | null>(null);
+  let editingTabId = $state<number | null>(null);
+  let contextTabId = $state<number | null>(null);
+  let contextTabName = $state<string | null>(null);
+  let editingTabName = $state('');
 
-  let noteType: string = 'basic';
+  let noteType = $state('basic');
 
   let statusBar!: HTMLSpanElement;
 
-  onMount(async () => {
-    store = await load('ui-state.json');
+  let flipDurationMs = $state<number>(0);
 
-    await loadTabs();
-    if ($tabs.length === 0) {
-      const newTab = await invoke<Tab>('create_tab', { name: 'Untitled' });
-      tabs.update((t: Tab[]) => [...t, newTab]);
-      currentTabId = newTab.id;
-      currentTabName = newTab.name;
-    }
+  onMount(() => {
+    void (async () => {
+      store = await load('ui-state.json');
 
-    const savedTabId = await store.get<number>('currentTabId') ?? null;
-    const savedTabName = await store.get<string>('currentTabName') ?? null;
-    const savedOpenStates = await store.get<Record<number, boolean>>('noteOpenStates');
+      flipDurationMs = 250;
 
-    if (savedTabId !== null && savedTabName !== null && $tabs.some(t => t.id === savedTabId && t.name === savedTabName)) {
-      try {
-        currentTabId = savedTabId;
-        currentTabName = savedTabName;
-
-      } catch (error) {
-        console.error(`Failed to fetch the tab ${currentTabName} from previous session:`, error);
-        if (statusBar) {
-          statusBar.textContent = `Failed to fetch the tab ${currentTabName} from previous session: ${error}`;
-        }
+      await loadTabs();
+      if (tabs.length === 0) {
+        const newTab = await invoke<Tab>('create_tab', { name: 'Untitled' });
+        tabs = [...tabs, newTab];
+        currentTabId = newTab.id;
+        currentTabName = newTab.name;
       }
-    }
 
-    if (savedOpenStates) {
-      try {
-        noteOpenStates.set(savedOpenStates);
-      } catch (error) {
-        console.error("Failed to set note states to their previous states:", error);
-        if (statusBar) {
-          statusBar.textContent = `Failed to set notes' states to their previous states: ${error}`;
-        }
-      }
-    }
+      const savedTabId = await store.get<number>('currentTabId') ?? null;
+      const savedTabName = await store.get<string>('currentTabName') ?? null;
+      const savedOpenStates = await store.get<Record<number, boolean>>('noteOpenStates');
 
-    noteOpenStates.subscribe(async (states) => {
-      if (store) {
+      if (savedTabId !== null && savedTabName !== null && tabs.some(t => t.id === savedTabId && t.name === savedTabName)) {
         try {
-          await store.set('noteOpenStates', states);
-          await store.save();
+          currentTabId = savedTabId;
+          currentTabName = savedTabName;
+
         } catch (error) {
-          console.error("Failed to save note state change:", error);
+          console.error(`Failed to fetch the tab ${currentTabName} from previous session:`, error);
           if (statusBar) {
-            statusBar.textContent = `Failed to save note state change: ${error}`;
+            statusBar.textContent = `Failed to fetch the tab ${currentTabName} from previous session: ${error}`;
           }
         }
       }
-    });
 
-    if (statusBar) statusBar.textContent = "App setup complete";
+      if (savedOpenStates) {
+        try {
+          Object.assign(noteOpenStates, savedOpenStates);
+
+          hydrated = true;
+        } catch (error) {
+          console.error("Failed to set note states to their previous states:", error);
+          if (statusBar) {
+            statusBar.textContent = `Failed to set notes' states to their previous states: ${error}`;
+          }
+        }
+      }
+
+      if (statusBar) statusBar.textContent = "App setup complete";
+    })();
   });
 
-  $: if (currentTabId !== previousTabId && currentTabId !== null && currentTabName !== null && store) {
-    try {
-      previousTabId = currentTabId;
-      previousTabName = currentTabName;
-      store.set('currentTabId', currentTabId);
-      store.set('currentTabName', currentTabName);
-      store.save();
-    } catch (error) {
-      console.error("Failed to update the store with the currently selected tab's ID and name:", error);
-      if (statusBar) {
-        statusBar.textContent = `Failed to update the store with the currently selected tab's ID and name: ${error}`;
+  $effect(() => {
+    if (currentTabId !== previousTabId && currentTabId !== null && currentTabName !== null && store) {
+      try {
+        previousTabId = currentTabId;
+        previousTabName = currentTabName;
+        store.set('currentTabId', currentTabId);
+        store.set('currentTabName', currentTabName);
+        store.save();
+      } catch (error) {
+        console.error("Failed to update the store with the currently selected tab's ID and name:", error);
+        if (statusBar) {
+          statusBar.textContent = `Failed to update the store with the currently selected tab's ID and name: ${error}`;
+        }
       }
     }
-  }
+  });
 
-  $: if (currentTabId !== null) {
-    loadNotes(currentTabId);
-  }
+  $effect(() => {
+    if (!store || !hydrated) return;
 
-  let showOverlay = false;
+    void (async () => {
+      try {
+        await store.set('noteOpenStates', noteOpenStates);
+        await store.save();
+      } catch (error) {
+        console.error("Failed to save note state change:", error);
+        if (statusBar) {
+          statusBar.textContent = `Failed to save note state change: ${error}`;
+        }
+      }
+    })();
+  });
+
+  $effect(() => {
+    if (currentTabId !== null) {
+      loadNotes(currentTabId);
+    }
+  });
+
+  $effect(() => {
+    topLevelNotes = notes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
+  });
+
+  let showOverlay = $state<boolean>(false);
 
   listen('app-closing', async () => {
     if (store) {
       store.set('currentTabId', currentTabId);
-      store.set('noteOpenStates', $noteOpenStates);
+      store.set('noteOpenStates', noteOpenStates);
       store.set('currentTabName', currentTabName);
       store.save();
     }
@@ -158,7 +177,11 @@
   async function loadNotes(tabId: number | null) {
     try {
       const data = await invoke<Note[]>('get_notes', { tabId: tabId });
-      notes.set(data);
+      notes = data;
+
+      topLevelNotes = notes
+        .filter(n => n.parent_id === null)
+        .sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0));
 
       if (statusBar) {
         statusBar.textContent = `Loaded notes on tab ${currentTabName} successfully`;
@@ -173,9 +196,10 @@
 
   async function addNote() {
     try {
-      const newNote = await invoke<Note>('create_note', { title: 'Untitled', content: '', tabId: currentTabId, parentId: null, noteType: noteType });
-      notes.update((n: Note[]) => [...n, newNote]);
+      await invoke<Note>('create_note', { title: 'Untitled', content: '', tabId: currentTabId, parentId: null, noteType: noteType });
       noteType = 'basic';
+
+      await loadNotes(currentTabId);
 
       if (statusBar) {
         statusBar.textContent = "Created note successfully";
@@ -191,10 +215,8 @@
   async function loadTabs() {
     try {
       const data = await invoke<Tab[]>('get_tabs');
-      tabs.set(
-        data
-          .sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
-      );
+      tabs = data
+        .sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0));
 
       if (statusBar) {
         statusBar.textContent = `Loaded tabs successfully. Loaded the last tab you left on: ${currentTabName}`;
@@ -210,7 +232,7 @@
   async function addTab() {
     try {
       const newTab = await invoke<Tab>('create_tab', { name: 'New Tab' });
-      tabs.update((t: Tab[]) => [...t, newTab]);
+      tabs = [...tabs, newTab];
       currentTabId = newTab.id;
       currentTabName = newTab.name;
 
@@ -231,10 +253,10 @@
         await invoke('delete_tab', { id: contextTabId });
         await loadTabs();
 
-        if (currentTabId === contextTabId && $tabs.length > 0) {
-          currentTabId = $tabs[0].id;
-          currentTabName = $tabs[0].name;
-        } else if ($tabs.length === 0) {
+        if (currentTabId === contextTabId && tabs.length > 0) {
+          currentTabId = tabs[0].id;
+          currentTabName = tabs[0].name;
+        } else if (tabs.length === 0) {
           currentTabId = null;
           currentTabName = null;
         }
@@ -253,7 +275,7 @@
     }
   }
 
-  let inputElement!: HTMLInputElement;
+  let inputElement = $state<HTMLInputElement | null>(null);
 
   function startRename(tab: Tab) {
     editingTabId = tab.id;
@@ -270,7 +292,7 @@
       if (editingTabName.trim() === '') return;
       await invoke('update_tab', { id: tab.id, name: editingTabName });
       tab.name = editingTabName;
-      tabs.update((t: Tab[]) => [...t]);
+      tabs = [...tabs];
       editingTabId = null;
       if (statusBar) {
         statusBar.textContent = `Updated tab name to ${editingTabName} successfully`;
@@ -299,23 +321,21 @@
     contextMenu.show(event);
   }
 
-  let pendingNoteUpdate: { ids: number[]; tabId: number | null } | null = null;
+  let pendingNoteUpdate: { ids: number[]; tabId: number | null; parentId: null } | null = null;
   let areNoteSyncing = false;
 
   function handleDndNote(e: CustomEvent<DndEvent<Note>>) {
-    const newItems = e.detail.items as Note[];
-    previewNotes.set(newItems);
+    previewNotes = [...e.detail.items] as Note[];
   }
 
   function handleDndFinalizeNote(e: CustomEvent<DndEvent<Note>>) {
-    previewNotes.set(null);
-    const newItems = e.detail.items as Note[];
-    notes.set(newItems);
+    previewNotes = null;
+    const newItems = [...e.detail.items] as Note[];
+    topLevelNotes = newItems;
 
     const orderedIds = newItems.map(n => n.id);
-    const targetTabId = currentTabId;
 
-    pendingNoteUpdate = { ids: orderedIds, tabId: targetTabId };
+    pendingNoteUpdate = { ids: orderedIds, tabId: currentTabId, parentId: null };
 
     if (!areNoteSyncing) {
       processPendingNoteUpdate();
@@ -333,24 +353,31 @@
     const currentBatch = pendingNoteUpdate;
     pendingNoteUpdate = null;
 
-    try {
-      await invoke('reorder_notes', { tabId: currentBatch.tabId, noteIds: currentBatch.ids });
+    let attempt = 0;
+    const maxRetries = 3;
 
-      if (statusBar) statusBar.textContent = 'Notes reordered successfully';
-    } catch (error) {
-      console.error("Failed to reorder notes:", error);
+    while (attempt <= maxRetries) {
+      try {
+        await invoke('reorder_notes', { tabId: currentBatch.tabId, noteIds: currentBatch.ids, parentId: currentBatch.parentId });
 
-      if (!pendingNoteUpdate) {
-        await loadNotes(currentTabId);
-        if (statusBar) statusBar.textContent = `Failed to reorder notes: ${error}`;
-      } else {
-        if (statusBar) statusBar.textContent = "Failed to reorder notes, retrying with newer state";
-      }
+        noteOpenStates = { ...noteOpenStates };
 
-      if (!pendingNoteUpdate) {
-        pendingNoteUpdate = currentBatch;
+        if (statusBar) statusBar.textContent = 'Notes reordered successfully';
+        break;
+      } catch (error) {
+        console.error("Failed to reorder notes:", error);
+
+        if (attempt >= maxRetries) {
+          await loadNotes(currentTabId);
+          if (statusBar) statusBar.textContent = `Failed to reorder notes! Retrying. Error: ${error}`;
+          break;
+        }
+        await new Promise(r => setTimeout(r, 200 * Math.pow(2, attempt)));
+        attempt++;
       }
     }
+
+    areNoteSyncing = false;
     processPendingNoteUpdate();
   }
 
@@ -358,14 +385,13 @@
   let areTabsSyncing = false;
 
   function handleDndTab(e: CustomEvent<DndEvent<Tab>>) {
-    const newItems = e.detail.items as Tab[];
-    previewTabs.set(newItems);
+    previewTabs = [...e.detail.items] as Tab[];
   }
 
   function handleDndFinalizeTab(e: CustomEvent<DndEvent<Tab>>) {
-    previewTabs.set(null);
-    const newItems = e.detail.items as Tab[];
-    tabs.set(newItems);
+    previewTabs = null;
+    const newItems = [...e.detail.items] as Tab[];
+    tabs = newItems;
 
     const savedCurrentTabId = currentTabId;
 
@@ -396,23 +422,29 @@
     const currentBatch = pendingTabUpdate;
     pendingTabUpdate = null;
 
-    try {
-      await invoke('reorder_tabs', { tabIds: currentBatch.ids });
+    let attempt = 0;
+    const maxRetries = 3;
 
-      if (statusBar) statusBar.textContent = "Tabs reordered successfully";
-    } catch (error) {
-      console.error("Failed to reorder tabs:", error);
-      if (!pendingTabUpdate) {
-        await loadTabs();
-        if (statusBar) statusBar.textContent = `Failed to reorder tabs: ${error}`;
-      } else {
-        if (statusBar) statusBar.textContent = "Failed to reorder tabs, retrying with newer state";
-      }
-      if (!pendingTabUpdate) {
-        pendingTabUpdate = currentBatch;
+    while (attempt <= maxRetries) {
+      try {
+        await invoke('reorder_tabs', { tabIds: currentBatch.ids });
+
+        if (statusBar) statusBar.textContent = "Tabs reordered successfully";
+        break;
+      } catch (error) {
+        console.error("Failed to reorder tabs:", error);
+        if (attempt >= maxRetries) {
+          await loadTabs();
+          if (statusBar) statusBar.textContent = `Failed to reorder tabs: ${error}`;
+          break;
+        }
+        await new Promise(r => setTimeout(r, 200 * Math.pow(2, attempt)));
+        attempt++;
       }
     }
-    processPendingTabUpdate
+
+    areTabsSyncing = false;
+    processPendingTabUpdate();
   }
 
   function transformElement(element: HTMLElement | undefined) {
@@ -422,11 +454,10 @@
     }
   }
 
-  let tabBarIsOpen: boolean;
-  $: tabBarIsOpen = $uiVisibility['tabBar'] ?? true;
+  let tabBarIsOpen = $derived(uiVisibility.tabBar);
 
   function tabBarToggle() {
-    uiVisibility.update((current) => ({ ...current, tabBar: !tabBarIsOpen }));
+    uiVisibility.tabBar = !uiVisibility.tabBar;
   }
 
 </script>
@@ -442,34 +473,36 @@
       <option value="basic">Basic</option>
       <option value="categorical">Categorical</option>
     </select>
-    <button on:click={addNote} disabled={!currentTabId}>Create Note</button>
-    <button on:click={openLogs}>Open logs</button>
-    <button on:click={backupDatabase}>Backup Database</button>
+    <button onclick={addNote} disabled={!currentTabId}>Create Note</button>
+    <button onclick={openLogs}>Open logs</button>
+    <button onclick={backupDatabase}>Backup Database</button>
   </div>
 
   <div id="middle" class:enlarged={!tabBarIsOpen}>
     <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
       <div id="noteContainer" use:dndzone={{
-        items: $previewNotes ?? $notes,
+        items: previewNotes ?? topLevelNotes,
         type: 'top-level-note',
-        flipDurationMs: 200,
+        flipDurationMs: flipDurationMs,
         dropTargetStyle: {},
         transformDraggedElement: transformElement,
         morphDisabled: true,
         centreDraggedOnCursor: true }}
-        on:consider={handleDndNote}
-        on:finalize={handleDndFinalizeNote}
+        onconsider={handleDndNote}
+        onfinalize={handleDndFinalizeNote}
       >
         {#if currentTabId}
-          {#each ($previewNotes ?? $notes) as note (note.id)}
-            <div animate:flip={{ duration: 200 }}>
-              <ComponentNote
-                {note}
-                setStatus={(msg) => (statusBar.textContent = msg)}
-                reloadNotes={() => loadNotes(currentTabId)}
-              ></ComponentNote>
-            </div>
-          {/each}
+          {#key topLevelNotes.map(n => n.id).join('-')}
+            {#each (previewNotes ?? topLevelNotes) as note (note.id)}
+              <div animate:flip={{ duration: flipDurationMs }}>
+                <ComponentNote
+                  {note} {notes} {noteOpenStates}
+                  setStatus={(msg) => (statusBar.textContent = msg)}
+                  reloadNotes={() => loadNotes(currentTabId)}
+                ></ComponentNote>
+              </div>
+            {/each}
+          {/key}
         {:else}
           <p>No tabs available.</p>
         {/if}
@@ -479,50 +512,52 @@
 
   {#if tabBarIsOpen}
     <div id="tabBar" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }}>
-      <button id="buttonAddTab" on:click={addTab}>Add Tab</button>
+      <button id="buttonAddTab" onclick={addTab}>Add Tab</button>
       <div id="tabList" use:dndzone={{
-        items: $previewTabs ?? $tabs,
+        items: previewTabs ?? tabs,
         type: 'tabs',
-        flipDurationMs: 100,
+        flipDurationMs: flipDurationMs,
         dropTargetStyle: {},
         transformDraggedElement: transformElement,
         morphDisabled: true,
         centreDraggedOnCursor: true }}
-        on:consider={handleDndTab}
-        on:finalize={handleDndFinalizeTab}
+        onconsider={handleDndTab}
+        onfinalize={handleDndFinalizeTab}
       >
-        {#each ($previewTabs ?? $tabs) as tab (tab.id)}
-          <button animate:flip={{ duration: 200 }}
-            role="textbox"
-            tabindex="0"
-            class="tab"
-            class:selected={currentTabId === tab.id}
-            on:click={() => selectTab(tab.id, tab.name)}
-            on:dblclick={() => startRename(tab)}
-            on:contextmenu={(event) => handleContextMenu(tab.id, tab.name, event)}
-          >
-            {#if editingTabId === tab.id}
-              <input
-                bind:this={inputElement}
-                bind:value={editingTabName}
-                on:blur={() => saveRename(tab)}
-                on:keydown={(e) => {
-                  if (e.key === 'Enter') saveRename(tab);
-                  if (e.key === 'Escape') cancelRename();
-                }}
-              />
-            {:else}
-              {tab.name || 'Untitled'}
-            {/if}
-          </button>
-        {/each}
+        {#key tabs.map(t => t.id).join('-')}
+          {#each (previewTabs ?? tabs) as tab (tab.id)}
+            <button animate:flip={{ duration: flipDurationMs }}
+              role="textbox"
+              tabindex="0"
+              class="tab"
+              class:selected={currentTabId === tab.id}
+              onclick={() => selectTab(tab.id, tab.name)}
+              ondblclick={() => startRename(tab)}
+              oncontextmenu={(event) => handleContextMenu(tab.id, tab.name, event)}
+            >
+              {#if editingTabId === tab.id}
+                <input
+                  bind:this={inputElement}
+                  bind:value={editingTabName}
+                  onblur={() => saveRename(tab)}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter') saveRename(tab);
+                    if (e.key === 'Escape') cancelRename();
+                  }}
+                />
+              {:else}
+                {tab.name || 'Untitled'}
+              {/if}
+            </button>
+          {/each}
+        {/key}
       </div>
     </div>
   {/if}
 
   <div id="statusBar">
     <span bind:this={statusBar}></span>
-    <button id="togglebutton" on:click={tabBarToggle}>{tabBarIsOpen ? 'v' : '^'}</button>
+    <button id="togglebutton" onclick={tabBarToggle}>{tabBarIsOpen ? 'v' : '^'}</button>
   </div>
 
   <ContextMenu bind:this={contextMenu}>

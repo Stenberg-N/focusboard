@@ -44,7 +44,7 @@ async fn main() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let base_dir: PathBuf = app.path().app_local_data_dir()?.into();
-            let data_dir = base_dir.join("databaseSvelte");
+            let data_dir = base_dir.join("database");
 
             info!("Attempting to create database directory: {:?}", data_dir);
             if let Err(e) = fs::create_dir_all(&data_dir) {

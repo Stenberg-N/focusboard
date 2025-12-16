@@ -325,7 +325,8 @@ pub async fn backup_database() -> Result<(), String> {
 pub async fn reorder_notes(
     pool: State<'_, SqlitePool>,
     tab_id: Option<i64>,
-    note_ids: Vec<i64>
+    note_ids: Vec<i64>,
+    parent_id: Option<i64>,
 ) -> Result<(), String> {
     let len = note_ids.len() as i64;
     if len == 0 {
@@ -340,10 +341,11 @@ pub async fn reorder_notes(
     for (index, &id) in note_ids.iter().enumerate() {
         let order_id = (index + 1) as i64;
 
-        sqlx::query("UPDATE notes SET order_id = ? WHERE id = ? AND tab_id = ?")
+        sqlx::query("UPDATE notes SET order_id = ? WHERE id = ? AND tab_id IS NOT DISTINCT FROM ? AND parent_id IS NOT DISTINCT FROM ?")
             .bind(order_id)
             .bind(id)
             .bind(tab_id)
+            .bind(parent_id)
             .execute(&mut *transaction)
             .await
             .map_err(|e| {
@@ -367,7 +369,7 @@ pub async fn reorder_tabs(
 ) -> Result<(), String> {
     let len = tab_ids.len() as i64;
     if len == 0 {
-        return Ok(())
+        return Ok(());
     }
 
     let mut transaction = pool.begin().await.map_err(|e| {
