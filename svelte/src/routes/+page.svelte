@@ -196,7 +196,8 @@
 
   async function addNote() {
     try {
-      await invoke<Note>('create_note', { title: 'Untitled', content: '', tabId: currentTabId, parentId: null, noteType: noteType });
+      const newNote = await invoke<Note>('create_note', { title: 'Untitled', content: '', tabId: currentTabId, parentId: null, noteType: noteType });
+      noteOpenStates[newNote.id] = true;
       noteType = 'basic';
 
       await loadNotes(currentTabId);
@@ -557,7 +558,7 @@
 
   <div id="statusBar">
     <span bind:this={statusBar}></span>
-    <button id="togglebutton" onclick={tabBarToggle}>{tabBarIsOpen ? 'v' : '^'}</button>
+    <button id="toggleTabBar" onclick={tabBarToggle}>{tabBarIsOpen ? 'v' : '^'}</button>
   </div>
 
   <ContextMenu bind:this={contextMenu}>

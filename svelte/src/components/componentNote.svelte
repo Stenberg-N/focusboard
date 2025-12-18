@@ -6,6 +6,7 @@
   import ComponentNote from './componentNote.svelte';
   import { cubicInOut } from 'svelte/easing';
   import { dndzone, type DndEvent } from 'svelte-dnd-action';
+  import ContextMenu, { Item } from 'svelte-contextmenu';
 
   import type { Note } from '../types/types';
   import 'overlayscrollbars/overlayscrollbars.css';
@@ -27,6 +28,8 @@
 
   let childNotes = $state<Note[]>([]);
   let previewChildNotes = $state<Note[] | null>(null);
+
+  let toggleMenu: ContextMenu;
 
   $effect(() => {
     childNotes = notes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
@@ -50,7 +53,7 @@
   async function addChild() {
     try {
       const newNote = await invoke<typeof note>('create_note', { title: 'Untitled', content: '', tabId: note.tab_id, noteType: 'basic', parentId: note.id });
-      noteOpenStates = { ...noteOpenStates, [newNote.id]: true };
+      noteOpenStates[newNote.id] = true
 
       await reloadNotes();
 
@@ -74,7 +77,7 @@
       await invoke('update_note', { id: note.id, title: editingTitle, content: editingContent || '' });
 
       isEditing = false;
-      noteOpenStates = { ...noteOpenStates, [note.id]: true };
+      noteOpenStates[note.id] = true;
 
       await reloadNotes();
 
@@ -89,7 +92,7 @@
     isEditing = false;
 
     if (hasSavedState) {
-      noteOpenStates = { ...noteOpenStates, [note.id]: originalOpenState };
+      noteOpenStates[note.id] = originalOpenState;
       hasSavedState = false;
     }
   }
@@ -137,6 +140,22 @@
   function toggle() {
     const isOpen = !(noteOpenStates[note.id] ?? true);
     noteOpenStates[note.id] = isOpen;
+  }
+
+  function CloseAllSubnotes() {
+    const selectedNotes = childNotes.filter(n => n.parent_id === note.id);
+
+    for (const selected of selectedNotes) {
+      noteOpenStates[selected.id] = false;
+    }
+  }
+
+  function OpenAllSubnotes() {
+    const selectedNotes = childNotes.filter(n => n.parent_id === note.id);
+
+    for (const selected of selectedNotes) {
+      noteOpenStates[selected.id] = true;
+    }
   }
 
   let pendingChildNoteUpdate: { ids: number[]; tabId: number | null; parentId: number } | null = null;
@@ -223,6 +242,7 @@
     <div id="noteControls">
       {#if isCategory}
         <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
+        <button onclick={(e) => toggleMenu.show(e)}>Toggle...</button>
         <button onclick={addChild} ondblclick={e => { e.stopPropagation(); }}>Add Note</button>
         <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }}>Edit</button>
         <button onclick={removeNote} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
@@ -313,4 +333,9 @@
       {/if}
     </div>
   </OverlayScrollbarsComponent>
+
+  <ContextMenu bind:this={toggleMenu}>
+    <Item on:click={OpenAllSubnotes}>Open all</Item>
+    <Item on:click={CloseAllSubnotes}>Close all</Item>
+  </ContextMenu>
 </div>
