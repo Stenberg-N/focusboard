@@ -5,8 +5,7 @@
   import { flip } from 'svelte/animate';
   import ComponentNote from './componentNote.svelte';
   import { cubicInOut } from 'svelte/easing';
-  import { dndzone, type DndEvent } from 'svelte-dnd-action';
-  import ContextMenu, { Item } from 'svelte-contextmenu';
+  import { type DndEvent, dragHandleZone, dragHandle } from 'svelte-dnd-action';
 
   import type { Note } from '../types/types';
   import 'overlayscrollbars/overlayscrollbars.css';
@@ -29,8 +28,6 @@
   let childNotes = $state<Note[]>([]);
   let previewChildNotes = $state<Note[] | null>(null);
 
-  let toggleMenu: ContextMenu;
-
   $effect(() => {
     childNotes = notes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
   });
@@ -48,7 +45,7 @@
 
   let collapseOpen = $derived(isEditing || open);
 
-  const flipDurationMs = 250;
+  const flipDurationMs = 200;
 
   async function addChild() {
     try {
@@ -234,6 +231,7 @@
   use:clickOutside
 >
   <div id="noteTitleBox">
+    <div class="dragHandle" use:dragHandle><p>Handle</p></div>
     <small>Last edited: {note.updated_at}</small>
     <small>Note ID: {note.id}</small>
     <small>Tab ID: {note.tab_id}</small>
@@ -242,7 +240,8 @@
     <div id="noteControls">
       {#if isCategory}
         <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
-        <button onclick={(e) => toggleMenu.show(e)}>Toggle...</button>
+        <button onclick={OpenAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Open all</button>
+        <button onclick={CloseAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Close all</button>
         <button onclick={addChild} ondblclick={e => { e.stopPropagation(); }}>Add Note</button>
         <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }}>Edit</button>
         <button onclick={removeNote} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
@@ -308,7 +307,7 @@
             {#if !isCategory}
               <p class="noteContent">{note.content || 'No content'}</p>
             {:else if isCategory}
-              <div class="subNotes" use:dndzone={{
+              <div class="subNotes" use:dragHandleZone={{
                 items: previewChildNotes ?? childNotes,
                 type: `child-note`,
                 flipDurationMs: flipDurationMs,
@@ -333,9 +332,4 @@
       {/if}
     </div>
   </OverlayScrollbarsComponent>
-
-  <ContextMenu bind:this={toggleMenu}>
-    <Item on:click={OpenAllSubnotes}>Open all</Item>
-    <Item on:click={CloseAllSubnotes}>Close all</Item>
-  </ContextMenu>
 </div>

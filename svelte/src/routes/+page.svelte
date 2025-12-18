@@ -9,7 +9,7 @@
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import { load } from '@tauri-apps/plugin-store';
   import type { Store } from '@tauri-apps/plugin-store';
-  import { dndzone, type DndEvent } from 'svelte-dnd-action';
+  import { dndzone, type DndEvent, dragHandleZone } from 'svelte-dnd-action';
   import { slide } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
 
@@ -56,7 +56,7 @@
     void (async () => {
       store = await load('ui-state.json');
 
-      flipDurationMs = 250;
+      flipDurationMs = 200;
 
       await loadTabs();
       if (tabs.length === 0) {
@@ -481,7 +481,7 @@
 
   <div id="middle" class:enlarged={!tabBarIsOpen}>
     <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-      <div id="noteContainer" use:dndzone={{
+      <div id="noteContainer" use:dragHandleZone={{
         items: previewNotes ?? topLevelNotes,
         type: 'top-level-note',
         flipDurationMs: flipDurationMs,
