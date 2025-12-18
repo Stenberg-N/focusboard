@@ -2,9 +2,10 @@
   import { invoke } from '@tauri-apps/api/core';
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import { slide } from 'svelte/transition';
+  import { flip } from 'svelte/animate';
   import ComponentNote from './componentNote.svelte';
   import { cubicInOut } from 'svelte/easing';
-  import { dndzone, type DndEvent, type Item as DndItem } from 'svelte-dnd-action';
+  import { dndzone, type DndEvent } from 'svelte-dnd-action';
 
   import type { Note } from '../types/types';
   import 'overlayscrollbars/overlayscrollbars.css';
@@ -43,6 +44,8 @@
   let hasSavedState = false;
 
   let collapseOpen = $derived(isEditing || open);
+
+  const flipDurationMs = 250;
 
   async function addChild() {
     try {
@@ -139,13 +142,15 @@
   let pendingChildNoteUpdate: { ids: number[]; tabId: number | null; parentId: number } | null = null;
   let areChildNotesSyncing = false;
 
-  function handleDnd(e: CustomEvent<DndEvent<DndItem>>) {
+  function handleDnd(e: CustomEvent<DndEvent<Note>>) {
     previewChildNotes = [...e.detail.items] as Note[];
   }
 
-  function handleDndFinalize(e: CustomEvent<DndEvent<DndItem>>) {
+  function handleDndFinalize(e: CustomEvent<DndEvent<Note>>) {
     previewChildNotes = null;
     const newItems = [...e.detail.items];
+    childNotes = newItems;
+
     const orderedIds = newItems.map(n => n.id);
 
     pendingChildNoteUpdate = { ids: orderedIds, tabId: note.tab_id, parentId: note.id };
@@ -285,8 +290,8 @@
             {:else if isCategory}
               <div class="subNotes" use:dndzone={{
                 items: previewChildNotes ?? childNotes,
-                type: `sub-notes-${note.id}`,
-                flipDurationMs: 250,
+                type: `child-note`,
+                flipDurationMs: flipDurationMs,
                 dropTargetStyle: {},
                 transformDraggedElement: transformElement,
                 morphDisabled: true,
@@ -296,7 +301,9 @@
               >
                 {#key childNotes.map(n => n.id).join('-')}
                   {#each (previewChildNotes ?? childNotes) as child (child.id)}
-                    <ComponentNote note={child} {reloadNotes} {setStatus} {notes} {noteOpenStates} />
+                    <div animate:flip={{ duration: flipDurationMs }}>
+                      <ComponentNote note={child} {reloadNotes} {setStatus} {notes} {noteOpenStates} />
+                    </div>
                   {/each}
                 {/key}
               </div>

@@ -341,11 +341,11 @@ pub async fn reorder_notes(
     for (index, &id) in note_ids.iter().enumerate() {
         let order_id = (index + 1) as i64;
 
-        sqlx::query("UPDATE notes SET order_id = ? WHERE id = ? AND tab_id IS NOT DISTINCT FROM ? AND parent_id IS NOT DISTINCT FROM ?")
+        sqlx::query("UPDATE notes SET order_id = ?, parent_id = ? WHERE id = ? AND tab_id IS NOT DISTINCT FROM ?")
             .bind(order_id)
+            .bind(parent_id)
             .bind(id)
             .bind(tab_id)
-            .bind(parent_id)
             .execute(&mut *transaction)
             .await
             .map_err(|e| {
