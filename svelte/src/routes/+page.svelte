@@ -198,7 +198,6 @@
     try {
       const newNote = await invoke<Note>('create_note', { title: 'Untitled', content: '', tabId: currentTabId, parentId: null, noteType: noteType });
       noteOpenStates[newNote.id] = true;
-      noteType = 'basic';
 
       await loadNotes(currentTabId);
 
@@ -450,8 +449,19 @@
 
   function transformElement(element: HTMLElement | undefined) {
     if (element) {
-      element.style.outline = '#723fffd0 solid 2px';
-      element.style.zIndex = '1000';
+      const innerNote: HTMLElement | null = element.querySelector('.note');
+      element.style.outline = 'none';
+      if (innerNote) {
+        const currentHeight = element.getBoundingClientRect().height;
+        const currentWidth = innerNote.getBoundingClientRect().width;
+        innerNote.style.outline = '2px solid #723fff';
+        innerNote.style.outlineOffset = '-2px';
+        innerNote.style.borderRadius = '8px';
+        innerNote.style.boxShadow = '0 8px 20px rgba(0,0,0,0.4)';
+        innerNote.style.zIndex = '1000';
+        innerNote.style.height = `${currentHeight}px`;
+        innerNote.style.width = `${currentWidth}px`;
+      }
     }
   }
 
@@ -480,8 +490,11 @@
   </div>
 
   <div id="middle" class:enlarged={!tabBarIsOpen}>
+    <div id="navigationBar">
+      <!-- placeholder -->
+    </div>
     <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-      <div id="noteContainer" use:dragHandleZone={{
+      <div id="noteContainer" class:enlarged={!tabBarIsOpen} use:dragHandleZone={{
         items: previewNotes ?? topLevelNotes,
         type: 'top-level-note',
         flipDurationMs: flipDurationMs,
@@ -495,7 +508,7 @@
         {#if currentTabId}
           {#key topLevelNotes.map(n => n.id).join('-')}
             {#each (previewNotes ?? topLevelNotes) as note (note.id)}
-              <div animate:flip={{ duration: flipDurationMs }}>
+              <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
                 <ComponentNote
                   {note} {notes} {noteOpenStates}
                   setStatus={(msg) => (statusBar.textContent = msg)}
@@ -570,9 +583,10 @@
 
 :global {
   .os-theme-dark {
-    --os-handle-bg: #555;
-    --os-handle-bg-hover: #aaa;
-    --os-handle-bg-active: #aaa;
+    --os-handle-bg: #888;
+    --os-handle-bg-hover: #ccc;
+    --os-handle-bg-active: #ccc;
+    --os-padding-axis: 20px;
   }
 }
 

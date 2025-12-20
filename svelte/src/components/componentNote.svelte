@@ -5,7 +5,7 @@
   import { flip } from 'svelte/animate';
   import ComponentNote from './componentNote.svelte';
   import { cubicInOut } from 'svelte/easing';
-  import { type DndEvent, dragHandleZone, dragHandle } from 'svelte-dnd-action';
+  import { type DndEvent, dragHandleZone, dragHandle, SHADOW_ITEM_MARKER_PROPERTY_NAME } from 'svelte-dnd-action';
 
   import type { Note } from '../types/types';
   import 'overlayscrollbars/overlayscrollbars.css';
@@ -194,6 +194,8 @@
       try {
         await invoke('reorder_notes', { noteIds: currentBatch.ids, tabId: currentBatch.tabId, parentId: currentBatch.parentId });
 
+        await reloadNotes();
+
         setStatus('Sub-notes reordered successfully');
         break;
       } catch (error) {
@@ -215,8 +217,17 @@
 
   function transformElement(element: HTMLElement | undefined) {
     if (element) {
-      element.style.outline = '#723fffd0 solid 2px';
-      element.style.zIndex = '1000';
+      const innerNote: HTMLElement | null = element.querySelector('.note');
+      element.style.outline = 'none';
+      if (innerNote) {
+        const currentHeight = element.getBoundingClientRect().height;
+        innerNote.style.outline = '2px solid #723fffd0';
+        innerNote.style.outlineOffset = '-2px';
+        innerNote.style.borderRadius = '8px';
+        innerNote.style.boxShadow = '0 8px 20px rgba(0,0,0,0.4)';
+        innerNote.style.zIndex = '1000';
+        innerNote.style.height = `${currentHeight}px`;
+      }
     }
   }
 
@@ -231,7 +242,7 @@
   use:clickOutside
 >
   <div id="noteTitleBox">
-    <div class="dragHandle" use:dragHandle><p>Handle</p></div>
+    <div class="dragHandle" role="button" tabindex="0" ondblclick={e => { e.stopPropagation(); }} use:dragHandle><p>Handle</p></div>
     <small>Last edited: {note.updated_at}</small>
     <small>Note ID: {note.id}</small>
     <small>Tab ID: {note.tab_id}</small>
@@ -239,15 +250,16 @@
     <small>Parent ID: {note.parent_id}</small>
     <div id="noteControls">
       {#if isCategory}
-        <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
+        <button onclick={addChild} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Add Note</button>
         <button onclick={OpenAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Open all</button>
         <button onclick={CloseAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Close all</button>
-        <button onclick={addChild} ondblclick={e => { e.stopPropagation(); }}>Add Note</button>
-        <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }}>Edit</button>
+        <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
         <button onclick={removeNote} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
       {:else if !isCategory}
-        <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
-        <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }}>Edit</button>
+        {#if note.parent_id !== null}
+          <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
+        {/if}
+        <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
         <button onclick={removeNote} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
       {/if}
     </div>
@@ -311,7 +323,7 @@
                 items: previewChildNotes ?? childNotes,
                 type: `child-note`,
                 flipDurationMs: flipDurationMs,
-                dropTargetStyle: {},
+                dropTargetStyle: {border: '1px solid #ccc'},
                 transformDraggedElement: transformElement,
                 morphDisabled: true,
                 centreDraggedOnCursor: true }}
@@ -320,7 +332,7 @@
               >
                 {#key childNotes.map(n => n.id).join('-')}
                   {#each (previewChildNotes ?? childNotes) as child (child.id)}
-                    <div animate:flip={{ duration: flipDurationMs }}>
+                    <div animate:flip={{ duration: flipDurationMs }} data-is-dnd-shadow-item-hint={(child as any)[SHADOW_ITEM_MARKER_PROPERTY_NAME] ?? false}>
                       <ComponentNote note={child} {reloadNotes} {setStatus} {notes} {noteOpenStates} />
                     </div>
                   {/each}
