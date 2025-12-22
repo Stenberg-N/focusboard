@@ -227,6 +227,12 @@
         innerNote.style.boxShadow = '0 8px 20px rgba(0,0,0,0.4)';
         innerNote.style.zIndex = '1000';
         innerNote.style.height = `${currentHeight}px`;
+        innerNote.style.transform = 'scale(0.5)';
+        innerNote.style.transition = 'transform 0.2s cubic-bezier(0.645, 0.045, 0.355, 1.000)';
+        innerNote.style.transformOrigin = 'center';
+
+        const content: HTMLElement | null = innerNote.querySelector('.noteContent');
+        if (content) content.style.display = 'none';
       }
     }
   }
@@ -280,6 +286,7 @@
       <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
     {/if}
   </div>
+
   <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
     <div id="noteContentOuter">
       {#if collapseOpen}

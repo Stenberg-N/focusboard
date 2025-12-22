@@ -54,7 +54,7 @@
   transition-delay: 100ms;
 }
 
-#middle.enlarged {
+#middle.enlarged, #navigationBar.enlarged {
   bottom: 20px;
 }
 
@@ -65,10 +65,13 @@
   bottom: 45px;
   display: flex;
   flex: 1 1 0;
-  width: 55px;
-  margin: 5px 0 5px 5px;
-  border: 1px solid #333;
+  max-width: 55px;
+  width: 100%;
+  margin: 5px 0 5px 10px;
+  border: 1px solid #444;
   border-radius: 18px;
+  transition: bottom 200ms cubic-bezier(0.645, 0.045, 0.355, 1.000);
+  transition-delay: 100ms;
 }
 
 #noteContainer {
@@ -78,10 +81,10 @@
   flex: 1 1 0;
   min-height: 0;
   gap: 10px;
-  width: calc(100vw - 70px);
+  width: calc(100vw - 85px);
   padding: 10px;
-  margin: 5px;
-  border: 1px solid #333;
+  margin: 5px 10px;
+  border: 1px solid #444;
   border-radius: 18px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -152,13 +155,12 @@
   flex: 1 1 0;
   flex-direction: column;
   background: #222;
-  border: 1px solid #333;
+  border: 1px solid #444;
   border-radius: 8px;
   padding: 18px 4px;
   max-height: calc(100vh - 149px);
   height: calc(100vh - 149px);
-  max-width: calc(100vw / 2 - 46px);
-  min-width: calc(100vw / 4 - 33px);
+  min-width: calc(100vw / 4 - 35px);
   box-shadow: 0 4px 12px rgba(0,0,0,8);
   transition: transform 0.2s, box-shadow 0.2s;
 }
@@ -167,8 +169,8 @@
   align-items: center;
   max-height: calc(100vh - 149px);
   height: calc(100vh - 149px);
-  max-width: calc(100vw / 2 - 46px);
-  min-width: calc(100vw / 4 - 33px);
+  min-width: calc(100vw / 4 - 35px);
+  width: 100%;
 }
 
 .note.editing textarea, .note textarea {
@@ -204,6 +206,7 @@ textarea::-webkit-scrollbar {
   margin: 12px 0;
   text-align: left;
   white-space: pre-wrap;
+  word-break: break-word;
   word-wrap: break-word;
 }
 
@@ -223,7 +226,7 @@ textarea::-webkit-scrollbar {
 
 .subNotes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(361px, 100vw));
+  grid-template-columns: repeat(auto-fill, minmax(381px, 100vw));
   min-height: 50px;
   gap: 16px;
   margin-top: 16px;

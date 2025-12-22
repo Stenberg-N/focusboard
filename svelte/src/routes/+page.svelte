@@ -453,14 +453,18 @@
       element.style.outline = 'none';
       if (innerNote) {
         const currentHeight = element.getBoundingClientRect().height;
-        const currentWidth = innerNote.getBoundingClientRect().width;
-        innerNote.style.outline = '2px solid #723fff';
+        innerNote.style.outline = '2px solid #723fffd0';
         innerNote.style.outlineOffset = '-2px';
         innerNote.style.borderRadius = '8px';
         innerNote.style.boxShadow = '0 8px 20px rgba(0,0,0,0.4)';
         innerNote.style.zIndex = '1000';
         innerNote.style.height = `${currentHeight}px`;
-        innerNote.style.width = `${currentWidth}px`;
+        innerNote.style.transform = 'scale(0.5)';
+        innerNote.style.transition = 'transform 0.2s cubic-bezier(0.645, 0.045, 0.355, 1.000)';
+        innerNote.style.transformOrigin = 'top-center';
+
+        const content: HTMLElement | null = innerNote.querySelector('.noteContent, .subNotes');
+        if (content) content.style.display = 'none';
       }
     }
   }
@@ -490,9 +494,10 @@
   </div>
 
   <div id="middle" class:enlarged={!tabBarIsOpen}>
-    <div id="navigationBar">
+    <div id="navigationBar" class:enlarged={!tabBarIsOpen}>
       <!-- placeholder -->
     </div>
+
     <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
       <div id="noteContainer" class:enlarged={!tabBarIsOpen} use:dragHandleZone={{
         items: previewNotes ?? topLevelNotes,
@@ -586,7 +591,7 @@
     --os-handle-bg: #888;
     --os-handle-bg-hover: #ccc;
     --os-handle-bg-active: #ccc;
-    --os-padding-axis: 20px;
+    --os-track-bg: #444;
   }
 }
 
