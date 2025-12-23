@@ -23,7 +23,7 @@
   let notes = $state<Note[]>([]);
   let tabs = $state<Tab[]>([]);
   let uiVisibility = $state({ tabBar: true, });
-  let topLevelNotes = $state<Note[]>([]);
+  let topLevelNotes = $derived.by(() => {return notes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
 
@@ -451,7 +451,9 @@
     if (element) {
       const innerNote: HTMLElement | null = element.querySelector('.note');
       element.style.outline = 'none';
+      element.style.willChange = 'transform';
       if (innerNote) {
+        innerNote.style.willChange = 'transform';
         const currentHeight = element.getBoundingClientRect().height;
         innerNote.style.outline = '2px solid #723fffd0';
         innerNote.style.outlineOffset = '-2px';
@@ -498,35 +500,37 @@
       <!-- placeholder -->
     </div>
 
-    <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-      <div id="noteContainer" class:enlarged={!tabBarIsOpen} use:dragHandleZone={{
-        items: previewNotes ?? topLevelNotes,
-        type: 'top-level-note',
-        flipDurationMs: flipDurationMs,
-        dropTargetStyle: {},
-        transformDraggedElement: transformElement,
-        morphDisabled: true,
-        centreDraggedOnCursor: true }}
-        onconsider={handleDndNote}
-        onfinalize={handleDndFinalizeNote}
-      >
-        {#if currentTabId}
-          {#key topLevelNotes.map(n => n.id).join('-')}
-            {#each (previewNotes ?? topLevelNotes) as note (note.id)}
-              <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
-                <ComponentNote
-                  {note} {notes} {noteOpenStates}
-                  setStatus={(msg) => (statusBar.textContent = msg)}
-                  reloadNotes={() => loadNotes(currentTabId)}
-                ></ComponentNote>
-              </div>
-            {/each}
-          {/key}
-        {:else}
-          <p>No tabs available.</p>
-        {/if}
-      </div>
-    </OverlayScrollbarsComponent>
+    <div id="noteContainer" class:enlarged={!tabBarIsOpen}>
+      <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
+        <div id="innerNoteContainer" use:dragHandleZone={{
+          items: previewNotes ?? topLevelNotes,
+          type: 'top-level-note',
+          flipDurationMs: flipDurationMs,
+          dropTargetStyle: {},
+          transformDraggedElement: transformElement,
+          morphDisabled: true,
+          centreDraggedOnCursor: true }}
+          onconsider={handleDndNote}
+          onfinalize={handleDndFinalizeNote}
+        >
+          {#if currentTabId}
+            {#key topLevelNotes.map(n => n.id).join('-')}
+              {#each (previewNotes ?? topLevelNotes) as note (note.id)}
+                <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
+                  <ComponentNote
+                    {note} {notes} {noteOpenStates}
+                    setStatus={(msg) => (statusBar.textContent = msg)}
+                    reloadNotes={() => loadNotes(currentTabId)}
+                  ></ComponentNote>
+                </div>
+              {/each}
+            {/key}
+          {:else}
+            <p>No tabs available.</p>
+          {/if}
+        </div>
+      </OverlayScrollbarsComponent>
+    </div>
   </div>
 
   {#if tabBarIsOpen}

@@ -25,7 +25,7 @@
     noteOpenStates: Record<number, boolean>;
   } = $props();
 
-  let childNotes = $state<Note[]>([]);
+  let childNotes = $derived.by(() => {return notes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
   let previewChildNotes = $state<Note[] | null>(null);
 
   $effect(() => {
@@ -219,7 +219,9 @@
     if (element) {
       const innerNote: HTMLElement | null = element.querySelector('.note');
       element.style.outline = 'none';
+      element.style.willChange = 'transform';
       if (innerNote) {
+        innerNote.style.willChange = 'transform';
         const currentHeight = element.getBoundingClientRect().height;
         innerNote.style.outline = '2px solid #723fffd0';
         innerNote.style.outlineOffset = '-2px';
