@@ -26,6 +26,7 @@
   let topLevelNotes = $derived.by(() => {return notes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
+  let zoomedNoteId = $state<number | null>(null);
 
   let noteOpenStates = $state<Record<number, boolean>>({});
   setContext('noteOpenStates', () => noteOpenStates);
@@ -477,11 +478,34 @@
     uiVisibility.tabBar = !uiVisibility.tabBar;
   }
 
+  function zoomNote(id: number) {
+    zoomedNoteId = id;
+  }
+
+  function closeZoom() {
+    zoomedNoteId = null;
+    if (statusBar) statusBar.textContent = 'Closed zoomed note';
+  }
+
 </script>
 
 <main class="container">
   {#if showOverlay}
     <LoaderOverlay />
+  {/if}
+
+  {#if zoomedNoteId}
+    <div role="button" tabindex="0" class="zoomedNoteOverlay" onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeZoom(); }}}>
+      <div class="zoomedNoteContent">
+        <button class="zoomedNoteCloseBtn" onclick={closeZoom}>Close without saving</button>
+        <ComponentNote
+          note={notes.find(n => n.id === zoomedNoteId)!}
+          {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
+          setStatus={(msg) => (statusBar.textContent = msg)}
+          reloadNotes={() => loadNotes(currentTabId)}
+        ></ComponentNote>
+      </div>
+    </div>
   {/if}
 
   <div id="menuBar">
@@ -518,7 +542,7 @@
               {#each (previewNotes ?? topLevelNotes) as note (note.id)}
                 <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
                   <ComponentNote
-                    {note} {notes} {noteOpenStates}
+                    {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
                     setStatus={(msg) => (statusBar.textContent = msg)}
                     reloadNotes={() => loadNotes(currentTabId)}
                   ></ComponentNote>

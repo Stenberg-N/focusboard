@@ -288,3 +288,42 @@ textarea::-webkit-scrollbar {
   text-align: center;
   font-size: 10px;
 }
+
+.zoomedNoteOverlay {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  z-index: 10000;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(15px);
+}
+
+.zoomedNoteContent {
+  position: relative;
+  inset: 0;
+  width: 50%;
+  height: 80%;
+  margin: auto;
+  overflow: auto;
+}
+
+.zoomedNoteCloseBtn {
+  margin: 5px 0 20px;
+  width: 140px;
+  height: 45px;
+  border: none;
+  border-radius: 6px;
+  background-color: #222;
+  color: #f6f6f6;
+  transition: transform 0.2s
+}
+
+.zoomedNoteCloseBtn:hover {
+  cursor: pointer;
+  background-color: #333;
+  transform: translateY(-3px);
+}
