@@ -17,3 +17,9 @@ export type Tab = {
   created_at: string;
   updated_at: string;
 };
+
+export type Timer = {
+  id: number;
+  duration: number;
+  message: string | null;
+}

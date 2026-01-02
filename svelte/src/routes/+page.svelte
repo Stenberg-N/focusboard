@@ -15,6 +15,7 @@
 
   import LoaderOverlay from '../components/loaderOverlay.svelte';
   import ComponentNote from '../components/componentNote.svelte';
+  import TimerView from '../components/timerView.svelte';
 
   import type { Note, Tab } from '../types/types';
   import './app.css';
@@ -27,8 +28,9 @@
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
   let zoomedNoteId = $state<number | null>(null);
-
+  let timerViewVisible = $state<boolean>(false);
   let noteOpenStates = $state<Record<number, boolean>>({});
+
   setContext('noteOpenStates', () => noteOpenStates);
   setContext('uiVisibility', () => uiVisibility);
   setContext('notes', () => notes);
@@ -36,7 +38,7 @@
   let store = $state<Store>();
   let hydrated = $state(false);
 
-  let contextMenu: ContextMenu;
+  let contextMenu = $state<ContextMenu>()!;
 
   let currentTabId = $state<number | null>(null);
   let currentTabName = $state<string | null>(null);
@@ -49,7 +51,7 @@
 
   let noteType = $state('basic');
 
-  let statusBar!: HTMLSpanElement;
+  let statusBar = $state<HTMLSpanElement>()!;
 
   let flipDurationMs = $state<number>(0);
 
@@ -509,55 +511,63 @@
   {/if}
 
   <div id="menuBar">
-    <small>Create Note in Current Tab</small>
-    <select bind:value={noteType}>
-      <option value="basic">Basic</option>
-      <option value="categorical">Categorical</option>
-    </select>
-    <button onclick={addNote} disabled={!currentTabId}>Create Note</button>
-    <button onclick={openLogs}>Open logs</button>
-    <button onclick={backupDatabase}>Backup Database</button>
+    {#if timerViewVisible}
+      <h2>Timer</h2>
+    {:else}
+      <small>Create Note in Current Tab</small>
+      <select bind:value={noteType}>
+        <option value="basic">Basic</option>
+        <option value="categorical">Categorical</option>
+      </select>
+      <button onclick={addNote} disabled={!currentTabId}>Create Note</button>
+      <button onclick={openLogs}>Open logs</button>
+      <button onclick={backupDatabase}>Backup Database</button>
+    {/if}
   </div>
 
-  <div id="middle" class:enlarged={!tabBarIsOpen}>
-    <div id="navigationBar" class:enlarged={!tabBarIsOpen}>
-      <!-- placeholder -->
+  <div id="middle" class:enlarged={!tabBarIsOpen || timerViewVisible}>
+    <div id="navigationBar">
+      <button id="timerViewBtn" onclick={() => (timerViewVisible = !timerViewVisible)}>{timerViewVisible ? 'Notes' : 'Timer view'}</button>
     </div>
 
-    <div id="noteContainer" class:enlarged={!tabBarIsOpen}>
-      <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-        <div id="innerNoteContainer" use:dragHandleZone={{
-          items: previewNotes ?? topLevelNotes,
-          type: 'top-level-note',
-          flipDurationMs: flipDurationMs,
-          dropTargetStyle: {},
-          transformDraggedElement: transformElement,
-          morphDisabled: true,
-          centreDraggedOnCursor: true }}
-          onconsider={handleDndNote}
-          onfinalize={handleDndFinalizeNote}
-        >
-          {#if currentTabId}
-            {#key topLevelNotes.map(n => n.id).join('-')}
-              {#each (previewNotes ?? topLevelNotes) as note (note.id)}
-                <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
-                  <ComponentNote
-                    {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
-                    setStatus={(msg) => (statusBar.textContent = msg)}
-                    reloadNotes={() => loadNotes(currentTabId)}
-                  ></ComponentNote>
-                </div>
-              {/each}
-            {/key}
-          {:else}
-            <p>No tabs available.</p>
-          {/if}
-        </div>
-      </OverlayScrollbarsComponent>
-    </div>
+    {#if timerViewVisible}
+      <TimerView setStatus={(msg) => (statusBar.textContent = msg)} />
+    {:else}
+      <div id="noteContainer" class:enlarged={!tabBarIsOpen}>
+        <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
+          <div id="innerNoteContainer" use:dragHandleZone={{
+            items: previewNotes ?? topLevelNotes,
+            type: 'top-level-note',
+            flipDurationMs: flipDurationMs,
+            dropTargetStyle: {},
+            transformDraggedElement: transformElement,
+            morphDisabled: true,
+            centreDraggedOnCursor: true }}
+            onconsider={handleDndNote}
+            onfinalize={handleDndFinalizeNote}
+          >
+            {#if currentTabId}
+              {#key topLevelNotes.map(n => n.id).join('-')}
+                {#each (previewNotes ?? topLevelNotes) as note (note.id)}
+                  <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
+                    <ComponentNote
+                      {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
+                      setStatus={(msg) => (statusBar.textContent = msg)}
+                      reloadNotes={() => loadNotes(currentTabId)}
+                    ></ComponentNote>
+                  </div>
+                {/each}
+              {/key}
+            {:else}
+              <p>No tabs available.</p>
+            {/if}
+          </div>
+        </OverlayScrollbarsComponent>
+      </div>
+    {/if}
   </div>
 
-  {#if tabBarIsOpen}
+  {#if tabBarIsOpen && !timerViewVisible}
     <div id="tabBar" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }}>
       <button id="buttonAddTab" onclick={addTab}>Add Tab</button>
       <div id="tabList" use:dndzone={{
@@ -604,7 +614,9 @@
 
   <div id="statusBar">
     <span bind:this={statusBar}></span>
-    <button id="toggleTabBar" onclick={tabBarToggle}>{tabBarIsOpen ? 'v' : '^'}</button>
+    {#if !timerViewVisible}
+      <button id="toggleTabBar" onclick={tabBarToggle}>{tabBarIsOpen ? 'v' : '^'}</button>
+    {/if}
   </div>
 
   <ContextMenu bind:this={contextMenu}>

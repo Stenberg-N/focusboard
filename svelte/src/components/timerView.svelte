@@ -1,0 +1,355 @@
+<script lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
+  import { onMount } from 'svelte';
+
+  import type { Timer } from "../types/types";
+
+  let {
+    setStatus,
+  }: {
+    setStatus: (msg: string) => void;
+  } = $props();
+
+  let isEditing = $state<boolean>(false);
+  let timerMessage = $state<string | null>('');
+  let remainingSeconds = $state<number>(0);
+  let initialSeconds = $state<number>(0);
+  let displayMinutes = $state<number>(0);
+  let displaySeconds = $state<number>(0);
+  let isRunning = $state<boolean>(false);
+  let interval: ReturnType<typeof setTimeout> | null = null;
+
+  let editingMinutes = $state<number>(0);
+  let editingSeconds = $state<number>(0);
+  let editingMessage = $state<string | null>('');
+
+  let selectedInputType = $state<'minutes' | 'seconds' | null>(null);
+  let minutesInput = $state<HTMLInputElement>();
+  let secondsInput = $state<HTMLInputElement>();
+
+  onMount(async () => {
+    await loadTimerFromDB();
+  });
+
+  async function loadTimerFromDB() {
+    try {
+      const timer: Timer = await invoke('get_timer');
+
+      initialSeconds = timer.duration;
+      remainingSeconds = timer.duration;
+      timerMessage = timer.message;
+
+      setStatus("Fetched timer successfully");
+
+    } catch (error) {
+      console.error("Failed to load timer:", error);
+      setStatus(`Failed to load timer: ${error}`);
+
+      initialSeconds = 0;
+      remainingSeconds = 0;
+      timerMessage = '';
+    }
+  }
+
+  $effect(() => {
+    displayMinutes = Math.floor(remainingSeconds / 60)
+    displaySeconds = remainingSeconds % 60
+  });
+
+  async function setTimer() {
+    const totalSeconds = (editingMinutes * 60) + editingSeconds;
+    try {
+      const timer: Timer = await invoke('create_timer', { duration: totalSeconds, message: editingMessage });
+
+      initialSeconds = timer.duration;
+      remainingSeconds = timer.duration;
+      timerMessage = timer.message;
+      isEditing = false;
+
+      setStatus("Timer set successfully");
+
+    } catch (error) {
+      console.error("Failed to set timer:", error);
+      setStatus(`Failed to set timer: ${error}`);
+    }
+  }
+
+  function startEdit() {
+    isEditing = true;
+    editingMinutes = Math.floor(initialSeconds / 60);
+    editingSeconds = initialSeconds % 60;
+    editingMessage = timerMessage;
+  }
+
+  function cancelEdit() {
+    isEditing = false;
+    selectedInputType = null;
+  }
+
+  function startTimer() {
+    if (isRunning || remainingSeconds <= 0) return;
+    isRunning = true;
+    interval = setInterval(() => {
+      if (remainingSeconds > 0) {
+        remainingSeconds--;
+      } else {
+        stopTimer();
+        alert(timerMessage || 'Timer complete!');
+      }
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (interval) {
+      clearInterval(interval);
+      interval = null;
+    }
+    isRunning = false;
+  }
+
+  function resetTimer() {
+    stopTimer();
+    remainingSeconds = initialSeconds;
+  }
+
+  function setSelectedInput(type: 'minutes' | 'seconds') {
+    selectedInputType = type;
+  }
+
+  function increase() {
+    if (selectedInputType === 'minutes') {
+      editingMinutes++;
+    } else if (selectedInputType === 'seconds') {
+      editingSeconds = Math.min(editingSeconds + 1, 59);
+    }
+  }
+
+  function decrease() {
+    if (selectedInputType === 'minutes') {
+      editingMinutes = Math.max(editingMinutes - 1, 0);
+    } else if (selectedInputType === 'seconds') {
+      editingSeconds = Math.max(editingSeconds - 1, 0);
+    }
+  }
+
+</script>
+
+<div id="timerContainer">
+  <div id="timer">
+    <div id="timerCircle">
+      <div id="controlsContainer">
+        {#if isEditing}
+          <div class="timerControls">
+            <button id="timeUp" onclick={increase}>Increase</button>
+            <button id="timeDown" onclick={decrease}>Decrease</button>
+            <button onclick={setTimer}>Save Timer</button>
+            <button onclick={cancelEdit}>Cancel</button>
+          </div>
+        {:else}
+          <div class="timerControls">
+            <button onclick={startEdit}>Edit</button>
+            <button onclick={startTimer} disabled={isRunning || remainingSeconds <= 0}>Start</button>
+            <button onclick={stopTimer} disabled={!isRunning}>Stop</button>
+            <button onclick={resetTimer}>Reset</button>
+          </div>
+        {/if}
+      </div>
+      <div id="contentArea">
+        <div id="timeValues">
+          {#if isEditing}
+            <input type="number" bind:value={editingMinutes} bind:this={minutesInput} min="0" onclick={() => setSelectedInput('minutes')} />
+            <input type="number" bind:value={editingSeconds} bind:this={secondsInput} min="0" max="59" onclick={() => setSelectedInput('seconds')} />
+          {:else}
+            <p id="timeMinutes">{displayMinutes.toString().padStart(2, '0')}</p>
+            <p id="timeSeconds">{displaySeconds.toString().padStart(2, '0')}</p>
+          {/if}
+        </div>
+        <div id="notificationMessageBox" role="textbox" tabindex="0" ondblclick={startEdit}>
+          <div id="messageContainer">
+            {#if isEditing}
+              <textarea bind:value={editingMessage} placeholder="Notification message"></textarea>
+            {:else}
+              {#if timerMessage!.length == 0}
+                <p class="message">No notification message set</p>
+              {:else}
+                <p class="message">{timerMessage}</p>
+              {/if}
+            {/if}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #timerContainer {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid #444;
+  border-radius: 18px 0 0 0;
+  border-bottom: none;
+  border-right: none;
+}
+
+#timer {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 0;
+  min-height: 0;
+  gap: 10px;
+  width: calc(100vw - 85px);
+  padding: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  justify-content: center;
+}
+
+#timerCircle {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-self: center;
+  max-height: calc(100vh - 200px);
+  max-width: calc(100vh - 200px);
+  height: 100%;
+  width: 100%;
+  border: 1px solid #444;
+  border-radius: 50%;
+  padding: calc((100vh - 113px) / 7);
+  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+#timerCircle:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
+}
+
+#contentArea {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1 1 0;
+  padding: 20px;
+  gap: 20px;
+}
+
+#controlsContainer {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: row;
+  justify-content: center;
+  max-height: 50px;
+}
+
+.timerControls {
+  display: flex;
+  align-self: center;
+  flex-direction: row;
+  gap: 5px;
+}
+
+#timeValues {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: row;
+  justify-content: center;
+  max-height: 390px;
+  padding: 20px;
+  gap: 20px;
+  border-radius: 8px;
+  background: #151515;
+}
+
+#timeMinutes, #timeSeconds, #timeValues input {
+  flex: 1 1 0;
+  text-align: center;
+  align-content: center;
+  max-width: 200px;
+  max-height: 350px;
+  font-size: 150px;
+  background: #222;
+  border-radius: 8px;
+  color: #f6f6f6;
+  margin: 0;
+  border: none;
+  outline: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#timeValues input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#timeMinutes:hover, #timeSeconds:hover, #timeValues input:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
+}
+
+#notificationMessageBox {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 0;
+  align-self: flex-end;
+  align-items: center;
+  max-height: 120px;
+  height: 100%;
+  width: 100%;
+  background: #151515;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+#messageContainer {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 0;
+  padding: 10px 5px;
+  width: 100%;
+  height: 100%;
+  background: #222;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#messageContainer:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
+}
+
+#notificationMessageBox .message {
+  max-height: 100px;
+  height: 100%;
+  width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  word-wrap: break-word;
+  overflow-y: auto;
+  margin: 0;
+}
+
+#notificationMessageBox .message::-webkit-scrollbar {
+  display: none;
+}
+
+#notificationMessageBox textarea {
+  max-height: 80px;
+  height: 100%;
+  width: 100%;
+  color: #f6f6f6;
+  background: transparent;
+  text-align: center;
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 400;
+  border: none;
+  outline: none;
+}
+</style>

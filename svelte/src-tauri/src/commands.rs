@@ -32,6 +32,13 @@ pub struct Tab {
     pub updated_at: String,
 }
 
+#[derive(FromRow, Serialize, Deserialize, Debug, Clone)]
+pub struct Timer {
+    pub id: i64,
+    pub duration: i32,
+    pub message: String,
+}
+
 #[tauri::command]
 pub async fn get_notes(
     pool: State<'_, SqlitePool>,
@@ -397,4 +404,62 @@ pub async fn reorder_tabs(
     })?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn create_timer(
+    pool: State<'_, SqlitePool>,
+    duration: i32,
+    message: String
+) -> Result<Timer, String> {
+    sqlx::query(
+        r#"
+        INSERT OR REPLACE INTO timers (id, duration, message)
+        VALUES (1, ?, ?)
+        "#
+    )
+    .bind(duration)
+    .bind(message)
+    .execute(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Failed to create/upsert timer: {:#}", e);
+        e.to_string()
+    })?;
+
+    let timer = sqlx::query_as::<_, Timer>(
+        r#"
+        SELECT * FROM timers WHERE id = 1
+        "#
+    )
+    .fetch_one(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Failed to fetch timer after create: {:#}", e);
+        e.to_string()
+    })?;
+
+    Ok(timer)
+}
+
+#[tauri::command]
+pub async fn get_timer(
+    pool: State<'_, SqlitePool>,
+) -> Result<Timer, String> {
+    let timer = query_as::<_, Timer>(
+        r#"
+        SELECT * FROM timers WHERE id = 1
+        "#
+    )
+    .fetch_optional(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Failed to get timer: {:#}", e);
+        e.to_string()
+    })?;
+
+    match timer {
+        Some(t) => Ok(t),
+        None => Err("No timer found".to_string()),
+    }
 }
