@@ -27,6 +27,18 @@
   text-align: center;
 }
 
+.spacer {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+}
+
+.infoText {
+  display: flex;
+  flex-direction: column;
+  opacity: 0.5;
+}
+
 #menuBar {
   position: fixed;
   top: 0;
@@ -36,6 +48,63 @@
   flex-direction: row;
   align-items: center;
   height: 70px;
+}
+
+#menuBar h2 {
+  width: 70px;
+  margin-left: 15px;
+  text-align: left;
+}
+
+#notesMenuBarControls {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+}
+
+#notesMenuBarControls button {
+  background: #222;
+  color: #f6f6f6;
+  height: 40px;
+  max-width: 100px;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#notesMenuBarControls button:hover {
+  background: #333;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0,0,0,8);
+  transform: translateY(-4px);
+}
+
+#notesMenuBarControls select {
+  background: #222;
+  color: #f6f6f6;
+  height: 40px;
+  max-width: 100px;
+  width: 100%;
+  outline: 0;
+  border: 0;
+  border-radius: 8px;
+  margin-left: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  transition: box-shadow 0.2s;
+}
+
+#notesMenuBarControls select:hover {
+  background: #333;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0,0,0,8);
+}
+
+#notesMenuBarControls select option {
+  background-color: #222;
 }
 
 #middle {
@@ -63,17 +132,31 @@
   bottom: 50px;
   display: flex;
   flex: 1 1 0;
-  max-width: 65px;
+  max-width: 55px;
   width: 100%;
-  margin: 0 10px;
-  padding: 5px;
-  border: 1px solid red;
-  border-radius: 18px;
+  margin: 0 15px;
+  padding: 0;
 }
 
 #timerViewBtn {
-  height: 40px;
+  background: #222;
+  max-width: 55px;
+  width: 100%;
+  max-height: 55px;
+  height: 100%;
+  border: none;
+  color: #f6f6f6;
+  box-shadow: 0 4px 12px rgba(0,0,0,8);
   border-radius: 8px;
+  padding: 0;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#timerViewBtn:hover {
+  background: #333;
+  cursor: pointer;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,8);
 }
 
 #noteContainer {
@@ -119,7 +202,16 @@
   bottom: 0;
   right: 0;
   width: 40px;
-  height: 20px;
+  height: 19px;
+  background: #222;
+  border: 0;
+  padding: 0;
+  transition: transform 0.2s;
+}
+
+#toggleTabBar:hover {
+  background: #333;
+  cursor: pointer;
 }
 
 #buttonAddTab {
@@ -171,6 +263,20 @@
   outline: 1px solid #723fffd0;
 }
 
+.tab.editing {
+  padding: 0;
+}
+
+.tab input {
+  max-width: 120px;
+  width: 100%;
+  background: transparent;
+  color: #f6f6f6;
+  border: none;
+  outline: none;
+  padding-left: 5px;
+}
+
 #statusBar {
   position: fixed;
   display: flex;
@@ -195,7 +301,7 @@
   border-radius: 8px;
   padding: 18px 4px;
   max-height: calc((100vh - 151px) / 2);
-  height: calc((100vh - 151px) / 2);
+  height: 100%;
   min-width: calc((100vw - 140px) / 4);
   box-shadow: 0 4px 12px rgba(0,0,0,8);
   transition: transform 0.2s, box-shadow 0.2s;
@@ -204,7 +310,7 @@
 .note.category {
   align-items: center;
   max-height: calc((100vh - 151px) / 2);
-  height: calc((100vh - 151px) / 2);
+  height: 100%;
   min-width: calc((100vw - 140px) / 4);
   width: 100%;
 }
@@ -219,16 +325,26 @@
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;
-  border: none;
+  border: 1px solid #888;
+  border-radius: 6px;
   outline: none;
+}
+
+.note.editing textarea:focus, .note textarea:focus {
+  border-color: #723fffd0;
 }
 
 textarea::-webkit-scrollbar {
   display: none;
 }
 
+.note.zoomed {
+  max-height: calc((100vh - 151px) / 1.2);
+  height: 100%;
+}
+
 .noteTitle {
-  margin: 0 0 18px 0;
+  margin: 0;
 }
 
 .note:hover {
@@ -251,13 +367,69 @@ textarea::-webkit-scrollbar {
 }
 
 #noteTitleBox {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   justify-items: center;
 }
 
-#noteControls {
+#noteTitleBox input {
+  max-width: 250px;
+  width: 100%;
+  height: 24px;
+  margin-bottom: 10px;
+  align-self: center;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f6f6f6;
+  background: transparent;
+  border: 1px solid #888;
+  border-radius: 6px;
+}
+
+#noteTitleBox input:focus {
+  border-color: #723fffd0;
+  outline: none;
+}
+
+.noteControls {
   display: flex;
   flex-direction: row;
+  flex: 1 1 0;
+  justify-content: center;
   gap: 5px;
+  margin-bottom: 10px;
+}
+
+.noteControls button {
+  background: #333;
+  color: #f6f6f6;
+  max-width: 100px;
+  width: 100%;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.noteControls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.noteControls button:not(:disabled):hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,8);
+  cursor: pointer;
+  background: #444;
+}
+
+.noteControls #noteEditSaveBtn, .noteControls #noteEditCancelBtn {
+  height: 28px;
+  max-width: 80px;
 }
 
 .subNotes {
@@ -277,20 +449,57 @@ textarea::-webkit-scrollbar {
   min-width: unset;
 }
 
-.dragHandle {
+#dragZoomContainer {
   display: flex;
-  align-self: center;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 20px;
-  background: black;
+  flex-direction: row;
 }
 
-.dragHandle p {
+.dragHandle {
+  display: flex;
+  align-self: flex-end;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 14px;
+  background: transparent;
+}
+
+.dragHandle #dragHandle-icon {
   margin: 0;
-  text-align: center;
-  font-size: 10px;
+  width: 20px;
+  height: 20px;
+  filter: invert(0.7);
+}
+
+.zoomBtn {
+  display: flex;
+  align-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin-left: 14px;
+}
+
+.zoomBtn:disabled {
+  opacity: 0.5;
+}
+
+.zoomBtn #zoom-icon, .zoomBtn #zoom-icon-disabled {
+  width: 30px;
+  height: 30px;
+  filter: invert(0.7);
+}
+
+.zoomBtn #zoom-icon-disabled:hover {
+  cursor: not-allowed;
+}
+
+.zoomBtn #zoom-icon:hover {
+  filter: invert(0.9);
+  cursor: pointer;
 }
 
 .zoomedNoteOverlay {
@@ -315,6 +524,23 @@ textarea::-webkit-scrollbar {
   overflow: auto;
 }
 
+.zoomedNoteContent .warnMessage {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-self: center;
+  max-height: 24px;
+  font-size: 14px;
+  margin: 0;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #723fffd0;
+  border-radius: 8px;
+}
+
 .zoomedNoteCloseBtn {
   margin: 5px 0 20px;
   width: 140px;
@@ -330,4 +556,34 @@ textarea::-webkit-scrollbar {
   cursor: pointer;
   background-color: #333;
   transform: translateY(-3px);
+}
+
+#noteIcon, #clockIcon {
+  display: flex;
+  justify-self: center;
+  max-width: 40px;
+  width: 100%;
+  max-height: 40px;
+  height: 100%;
+}
+
+#noteIcon {
+  filter: saturate(0) contrast(1.2);
+}
+
+#clockIcon {
+  filter: brightness(0) invert(0.7);
+}
+
+.arrowUp-icon, .arrowDown-icon {
+  display: flex;
+  justify-self: center;
+  height: 19px;
+  width: 40px;
+  filter: brightness(0) invert(0.7);
+  transition: transform 0.2s;
+}
+
+.arrowUp-icon:hover, .arrowDown-icon:hover {
+  transform: scale(1.1) translateY(-1px);
 }

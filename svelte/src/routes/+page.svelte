@@ -499,6 +499,7 @@
   {#if zoomedNoteId}
     <div role="button" tabindex="0" class="zoomedNoteOverlay" onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeZoom(); }}}>
       <div class="zoomedNoteContent">
+        <p class="warnMessage">The close button does not save any changes made to the note. Please remember to save the changes in the note edit mode before exiting the zoom.</p>
         <button class="zoomedNoteCloseBtn" onclick={closeZoom}>Close without saving</button>
         <ComponentNote
           note={notes.find(n => n.id === zoomedNoteId)!}
@@ -514,20 +515,28 @@
     {#if timerViewVisible}
       <h2>Timer</h2>
     {:else}
-      <small>Create Note in Current Tab</small>
-      <select bind:value={noteType}>
-        <option value="basic">Basic</option>
-        <option value="categorical">Categorical</option>
-      </select>
-      <button onclick={addNote} disabled={!currentTabId}>Create Note</button>
-      <button onclick={openLogs}>Open logs</button>
-      <button onclick={backupDatabase}>Backup Database</button>
+      <h2>Notes</h2>
+      <div id="notesMenuBarControls">
+        <select bind:value={noteType}>
+          <option value="basic">Basic</option>
+          <option value="categorical">Categorical</option>
+        </select>
+        <button onclick={addNote} disabled={!currentTabId}>Create Note</button>
+        <button onclick={openLogs}>Open logs</button>
+        <button onclick={backupDatabase}>Backup Database</button>
+      </div>
     {/if}
   </div>
 
   <div id="middle" class:enlarged={!tabBarIsOpen || timerViewVisible}>
     <div id="navigationBar">
-      <button id="timerViewBtn" onclick={() => (timerViewVisible = !timerViewVisible)}>{timerViewVisible ? 'Notes' : 'Timer view'}</button>
+      <button id="timerViewBtn" onclick={() => (timerViewVisible = !timerViewVisible)}>
+        {#if timerViewVisible}
+          <img id="noteIcon" src="note.svg" alt="noteIcon">
+        {:else}
+          <img id="clockIcon" src="clock.svg" alt="clockIcon">
+        {/if}
+      </button>
     </div>
 
     {#if timerViewVisible}
@@ -587,6 +596,7 @@
               role="textbox"
               tabindex="0"
               class="tab"
+              class:editing={editingTabId === tab.id}
               class:selected={currentTabId === tab.id}
               onclick={() => selectTab(tab.id, tab.name)}
               ondblclick={() => startRename(tab)}
@@ -615,7 +625,13 @@
   <div id="statusBar">
     <span bind:this={statusBar}></span>
     {#if !timerViewVisible}
-      <button id="toggleTabBar" onclick={tabBarToggle}>{tabBarIsOpen ? 'v' : '^'}</button>
+      <button id="toggleTabBar" onclick={tabBarToggle}>
+        {#if tabBarIsOpen}
+          <img class="arrowDown-icon" src="down-arrow.svg" alt="arrowDownIcon">
+        {:else}
+          <img class="arrowUp-icon" src="up-arrow.svg" alt="arrowUpIcon">
+        {/if}
+      </button>
     {/if}
   </div>
 

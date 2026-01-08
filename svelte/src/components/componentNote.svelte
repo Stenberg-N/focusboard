@@ -251,23 +251,32 @@
   class="note"
   class:category={isCategory}
   class:editing={isEditing}
+  class:zoomed={isZoomed}
   role="article"
   ondblclick={e => { e.stopPropagation(); startEdit(); }}
   use:clickOutside
 >
   <div id="noteTitleBox">
-    {#if !isZoomed}
-      <div class="dragHandle" role="button" tabindex="0" ondblclick={e => { e.stopPropagation(); }} use:dragHandle><p>Handle</p></div>
-    {/if}
-    {#if !isCategory}
-    <button onclick={() => zoomedNote(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>{isZoomed ? 'Zoomed' : 'Zoom'}</button>
-    {/if}
-    <small>Last edited: {note.updated_at}</small>
-    <small>Note ID: {note.id}</small>
-    <small>Tab ID: {note.tab_id}</small>
-    <small>Order ID: {note.order_id}</small>
-    <small>Parent ID: {note.parent_id}</small>
-    <div id="noteControls">
+    <div id="dragZoomContainer">
+      {#if !isCategory}
+      <button class="zoomBtn" onclick={() => zoomedNote(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>
+        {#if isZoomed || isEditing}
+          <img id="zoom-icon-disabled" src="zoom.svg" alt="ZoomIconDisabled">
+        {:else}
+          <img id="zoom-icon" src="zoom.svg" alt="ZoomIcon">
+        {/if}
+      </button>
+      {/if}
+      <div class="spacer"></div>
+      {#if !isZoomed}
+        {#if !isEditing}
+          <div class="dragHandle" role="button" tabindex="0" ondblclick={e => { e.stopPropagation(); }} use:dragHandle>
+            <img id="dragHandle-icon" src="drag-handle.svg" alt="dragHandleIcon">
+          </div>
+        {/if}
+      {/if}
+    </div>
+    <div class="noteControls">
       {#if isCategory}
         <button onclick={addChild} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Add Note</button>
         <button onclick={OpenAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Open all</button>
@@ -276,13 +285,20 @@
         <button onclick={removeNote} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
       {:else if !isCategory}
         {#if note.parent_id !== null}
-          <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>{open ? 'Hide' : 'Show'}</button>
+          <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>{open ? 'Hide' : 'Show'}</button>
         {/if}
         <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
         <button onclick={removeNote} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
       {/if}
     </div>
     {#if isEditing}
+      <div class="noteControls">
+        <button id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
+        <button id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
+      </div>
+      <div class="infoText">
+        <small>Press Esc to cancel | Press Enter or click outside to save</small>
+      </div>
       <input
         bind:value={editingTitle}
         placeholder="Title | Enter to save"
@@ -323,15 +339,11 @@
                 }}
               >
               </textarea>
-              <div class="edit-actions">
-                <button onclick={saveEdit}>Save</button>
-                <button onclick={cancelEdit}>Cancel</button>
-                <small>Press Esc to cancel | Press Enter or click outside to save</small>
+              <div class="noteControls">
+                <button id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
+                <button id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
               </div>
-            {:else if isCategory}
-              <div class="edit-actions">
-                <button onclick={saveEdit}>Save</button>
-                <button onclick={cancelEdit}>Cancel</button>
+              <div class="infoText">
                 <small>Press Esc to cancel | Press Enter or click outside to save</small>
               </div>
             {/if}

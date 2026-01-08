@@ -28,5 +28,8 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+    fs: {
+      allow: ["static/up-arrow.svg", "static/down-arrow.svg", "static/note.svg", "static/clock.svg"]
+    },
   },
 }));

@@ -140,17 +140,21 @@
       <div id="controlsContainer">
         {#if isEditing}
           <div class="timerControls">
-            <button id="timeUp" onclick={increase}>Increase</button>
-            <button id="timeDown" onclick={decrease}>Decrease</button>
-            <button onclick={setTimer}>Save Timer</button>
-            <button onclick={cancelEdit}>Cancel</button>
+            <button class="timerButton" onclick={setTimer}>Save</button>
+            <button class="timerButton" onclick={increase}>
+              <img id="timeUp-icon" src="up-arrow.svg" alt="upArrow">
+            </button>
+            <button class="timerButton" onclick={decrease}>
+              <img id="timeDown-icon" src="down-arrow.svg" alt="downArrow">
+            </button>
+            <button class="timerButton" onclick={cancelEdit}>Cancel</button>
           </div>
         {:else}
           <div class="timerControls">
-            <button onclick={startEdit}>Edit</button>
-            <button onclick={startTimer} disabled={isRunning || remainingSeconds <= 0}>Start</button>
-            <button onclick={stopTimer} disabled={!isRunning}>Stop</button>
-            <button onclick={resetTimer}>Reset</button>
+            <button class="timerButton" onclick={startEdit}>Edit</button>
+            <button class="timerButton" onclick={startTimer} disabled={isRunning || remainingSeconds <= 0}>Start</button>
+            <button class="timerButton" onclick={stopTimer} disabled={!isRunning}>Stop</button>
+            <button class="timerButton" onclick={resetTimer}>Reset</button>
           </div>
         {/if}
       </div>
@@ -167,7 +171,7 @@
         <div id="notificationMessageBox" role="textbox" tabindex="0" ondblclick={startEdit}>
           <div id="messageContainer">
             {#if isEditing}
-              <textarea bind:value={editingMessage} placeholder="Notification message"></textarea>
+              <textarea bind:value={editingMessage} placeholder="Set notification message here"></textarea>
             {:else}
               {#if timerMessage!.length == 0}
                 <p class="message">No notification message set</p>
@@ -240,9 +244,11 @@
 #controlsContainer {
   display: flex;
   flex: 1 1 0;
-  flex-direction: row;
+  flex-direction: column;
+  align-self: center;
   justify-content: center;
   max-height: 50px;
+  max-width: 300px;
 }
 
 .timerControls {
@@ -250,6 +256,40 @@
   align-self: center;
   flex-direction: row;
   gap: 5px;
+}
+
+.timerButton {
+  background-color: #222;
+  color: #f6f6f6;
+  font-size: 16px;
+  border: none;
+  border-radius: 6px;
+  max-width: 80px;
+  width: 100%;
+  height: 32px;
+  padding: 2px 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.timerButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.timerButton:not(:disabled):hover {
+  cursor: pointer;
+  background: #333;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,8);
+}
+
+#timeUp-icon, #timeDown-icon {
+  display: flex;
+  height: 24px;
+  width: 24px;
+  filter: brightness(0) invert(0.7);
 }
 
 #timeValues {
@@ -319,6 +359,7 @@
 }
 
 #messageContainer:hover {
+  cursor: pointer;
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(0,0,0,1);
 }
