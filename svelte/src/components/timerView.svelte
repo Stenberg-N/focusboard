@@ -141,8 +141,6 @@
 
     remainingSeconds = secondsLeft;
 
-    console.log('tick', interval);
-
     if (secondsLeft <= 0) {
       stopTimer();
       isTimerFinished = true;
