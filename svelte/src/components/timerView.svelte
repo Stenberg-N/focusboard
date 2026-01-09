@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
 
   import type { Timer } from "../types/types";
 
