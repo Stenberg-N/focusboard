@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
 
   import type { Timer } from "../types/types";
 
@@ -10,6 +10,8 @@
     setStatus: (msg: string) => void;
   } = $props();
 
+  const timerStateKey = 'runningTimer';
+
   let isEditing = $state<boolean>(false);
   let timerMessage = $state<string | null>('');
   let remainingSeconds = $state<number>(0);
@@ -18,6 +20,7 @@
   let displaySeconds = $state<number>(0);
   let isRunning = $state<boolean>(false);
   let interval: ReturnType<typeof setTimeout> | null = null;
+  let endAt: number | null = null;
 
   let editingMinutes = $state<number>(0);
   let editingSeconds = $state<number>(0);
@@ -29,6 +32,7 @@
 
   onMount(async () => {
     await loadTimerFromDB();
+    restoreRunningTimer();
   });
 
   async function loadTimerFromDB() {
@@ -49,6 +53,25 @@
       remainingSeconds = 0;
       timerMessage = '';
     }
+  }
+
+  function restoreRunningTimer() {
+    const stored = localStorage.getItem(timerStateKey);
+    if (!stored) return;
+
+    const { endAt, isRunning: wasRunning } = JSON.parse(stored);
+    if (!wasRunning || !endAt) return;
+
+    const secondsLeft = Math.ceil((endAt - Date.now()) / 1000);
+
+    if (secondsLeft <= 0) {
+      localStorage.removeItem(timerStateKey);
+      return;
+    }
+
+    remainingSeconds = secondsLeft;
+    isRunning = true;
+    interval = setInterval(tickDown, 1000);
   }
 
   $effect(() => {
@@ -88,15 +111,32 @@
 
   function startTimer() {
     if (isRunning || remainingSeconds <= 0) return;
+
+    endAt = Date.now() + remainingSeconds * 1000;
+
+    localStorage.setItem(
+      timerStateKey,
+      JSON.stringify({ endAt, isRunning: true })
+    );
+
     isRunning = true;
-    interval = setInterval(() => {
-      if (remainingSeconds > 0) {
-        remainingSeconds--;
-      } else {
-        stopTimer();
-        alert(timerMessage || 'Timer complete!');
-      }
-    }, 1000);
+
+    interval = setInterval(tickDown, 1000);
+  }
+
+  function tickDown() {
+    const stored = localStorage.getItem(timerStateKey);
+    if (!stored) return;
+
+    const { endAt } = JSON.parse(stored);
+    const secondsLeft = Math.max(Math.ceil((endAt - Date.now()) / 1000), 0);
+
+    remainingSeconds = secondsLeft;
+
+    if (secondsLeft === 0) {
+      stopTimer();
+      alert(timerMessage || 'Timer complete!');
+    }
   }
 
   function stopTimer() {
@@ -105,6 +145,7 @@
       interval = null;
     }
     isRunning = false;
+    localStorage.removeItem(timerStateKey);
   }
 
   function resetTimer() {
