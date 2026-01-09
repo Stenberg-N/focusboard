@@ -10,7 +10,7 @@
   import { load } from '@tauri-apps/plugin-store';
   import type { Store } from '@tauri-apps/plugin-store';
   import { dndzone, type DndEvent, dragHandleZone } from 'svelte-dnd-action';
-  import { slide } from 'svelte/transition';
+  import { slide, fly } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
 
   import LoaderOverlay from '../components/loaderOverlay.svelte';
@@ -23,7 +23,7 @@
 
   let notes = $state<Note[]>([]);
   let tabs = $state<Tab[]>([]);
-  let uiVisibility = $state({ tabBar: true, });
+  let uiVisibility = $state({ tabBar: true, runningTimer: true, });
   let topLevelNotes = $derived.by(() => {return notes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
@@ -34,6 +34,11 @@
   setContext('noteOpenStates', () => noteOpenStates);
   setContext('uiVisibility', () => uiVisibility);
   setContext('notes', () => notes);
+
+  let displayMinutes = $state(0);
+  let displaySeconds = $state(0);
+  let isRunningTimerFinished = $state(false);
+  let setTimerMessage = $state('');
 
   let store = $state<Store>();
   let hydrated = $state(false);
@@ -100,6 +105,10 @@
       }
 
       if (statusBar) statusBar.textContent = "App setup complete";
+
+      updateFromTimer();
+      const currentlyRunningTimer = setInterval(updateFromTimer, 1000);
+      return () => clearInterval(currentlyRunningTimer);
     })();
   });
 
@@ -175,6 +184,30 @@
         statusBar.textContent = `Database backup failed: ${error}`;
       }
     }
+  }
+
+  function updateFromTimer() {
+    const stored = localStorage.getItem('runningTimer');
+    if (!stored) {
+      displayMinutes = 0;
+      displaySeconds = 0;
+      return;
+    }
+
+    const { endAt, isRunning, setMessage } = JSON.parse(stored);
+    if (!isRunning) return;
+
+    const remainingTime = Math.ceil((endAt - Date.now()) / 1000);
+
+    if (remainingTime <= 1) {
+      setTimeout(() => {
+        isRunningTimerFinished = true;
+      }, 1000);
+    }
+
+    displayMinutes = Math.floor(remainingTime / 60);
+    displaySeconds = remainingTime % 60;
+    setTimerMessage = setMessage;
   }
 
   async function loadNotes(tabId: number | null) {
@@ -480,6 +513,12 @@
     uiVisibility.tabBar = !uiVisibility.tabBar;
   }
 
+  let runningTimerIsOpen = $derived(uiVisibility.runningTimer);
+
+  function runningTimerToggle() {
+    uiVisibility.runningTimer = !uiVisibility.runningTimer;
+  }
+
   function zoomNote(id: number) {
     zoomedNoteId = id;
   }
@@ -511,6 +550,20 @@
     </div>
   {/if}
 
+  {#if isRunningTimerFinished && !timerViewVisible}
+    <div id="mainViewTimerFinishedContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+      <div id="mainViewTimerNotificationContainer">
+        <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
+          <div id="mainViewTimerMessageContainer">
+            <p>{setTimerMessage || 'Timer complete!'}</p>
+          </div>
+        </OverlayScrollbarsComponent>
+        <div class="mainViewTimerSpacer"></div>
+        <button onclick={() => isRunningTimerFinished = false}>OK</button>
+      </div>
+    </div>
+  {/if}
+
   <div id="menuBar">
     {#if timerViewVisible}
       <h2>Timer</h2>
@@ -524,6 +577,19 @@
         <button onclick={addNote} disabled={!currentTabId}>Create Note</button>
         <button onclick={openLogs}>Open logs</button>
         <button onclick={backupDatabase}>Backup Database</button>
+      </div>
+      <div id="runningTimerContainer">
+        <button id="runningTimerToggle" class:closed={!runningTimerIsOpen} onclick={runningTimerToggle}>{runningTimerIsOpen ? 'Close' : 'Open'}</button>
+        {#if runningTimerIsOpen}
+          <div id="timesContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+            <div id="runningDisplayMinutes">
+              <p>{displayMinutes.toString().padStart(2, '0')}</p>
+            </div>
+            <div id="runningDisplaySeconds">
+              <p>{displaySeconds.toString().padStart(2, '0')}</p>
+            </div>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>

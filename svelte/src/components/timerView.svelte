@@ -1,8 +1,12 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
+  import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
+  import { fly } from 'svelte/transition';
+  import { cubicInOut } from 'svelte/easing';
 
   import type { Timer } from "../types/types";
+  import 'overlayscrollbars/overlayscrollbars.css';
 
   let {
     setStatus,
@@ -21,6 +25,7 @@
   let isRunning = $state<boolean>(false);
   let interval: ReturnType<typeof setTimeout> | null = null;
   let endAt: number | null = null;
+  let isTimerFinished = $state<boolean>(false);
 
   let editingMinutes = $state<number>(0);
   let editingSeconds = $state<number>(0);
@@ -59,13 +64,18 @@
     const stored = localStorage.getItem(timerStateKey);
     if (!stored) return;
 
-    const { endAt, isRunning: wasRunning } = JSON.parse(stored);
+    let { endAt, isRunning: wasRunning, savedInterval } = JSON.parse(stored);
     if (!wasRunning || !endAt) return;
+
+    if (savedInterval) {
+      clearInterval(savedInterval);
+      savedInterval = null;
+    }
 
     const secondsLeft = Math.ceil((endAt - Date.now()) / 1000);
 
     if (secondsLeft <= 0) {
-      localStorage.removeItem(timerStateKey);
+      stopTimer();
       return;
     }
 
@@ -113,15 +123,13 @@
     if (isRunning || remainingSeconds <= 0) return;
 
     endAt = Date.now() + remainingSeconds * 1000;
+    isRunning = true;
+    interval = setInterval(tickDown, 1000);
 
     localStorage.setItem(
       timerStateKey,
-      JSON.stringify({ endAt, isRunning: true })
+      JSON.stringify({ endAt, isRunning: true, savedInterval: interval, setMessage: timerMessage })
     );
-
-    isRunning = true;
-
-    interval = setInterval(tickDown, 1000);
   }
 
   function tickDown() {
@@ -129,13 +137,15 @@
     if (!stored) return;
 
     const { endAt } = JSON.parse(stored);
-    const secondsLeft = Math.max(Math.ceil((endAt - Date.now()) / 1000), 0);
+    const secondsLeft = Math.ceil((endAt - Date.now()) / 1000);
 
     remainingSeconds = secondsLeft;
 
-    if (secondsLeft === 0) {
+    console.log('tick', interval);
+
+    if (secondsLeft <= 0) {
       stopTimer();
-      alert(timerMessage || 'Timer complete!');
+      isTimerFinished = true;
     }
   }
 
@@ -175,6 +185,19 @@
 
 </script>
 
+{#if isTimerFinished}
+  <div id="timerFinishedContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+      <div id="timerNotificationContainer">
+        <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
+          <div id="timerMessageContainer">
+            <p>{timerMessage || 'Timer complete!'}</p>
+          </div>
+        </OverlayScrollbarsComponent>
+        <div class="timerViewSpacer"></div>
+        <button class="timerButton" onclick={() => isTimerFinished = false}>OK</button>
+      </div>
+  </div>
+{/if}
 <div id="timerContainer">
   <div id="timer">
     <div id="timerCircle">
@@ -239,6 +262,12 @@
   border-right: none;
 }
 
+.timerViewSpacer {
+  display: flex;
+  flex: 1;
+  border-bottom: 1px solid #444;
+}
+
 #timer {
   display: flex;
   flex-direction: row;
@@ -264,7 +293,7 @@
   border: 1px solid #444;
   border-radius: 50%;
   padding: calc((100vh - 113px) / 7);
-  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.3s, box-shadow 0.3s;
 }
 
@@ -309,7 +338,7 @@
   width: 100%;
   height: 32px;
   padding: 2px 10px;
-  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -323,7 +352,7 @@
   cursor: pointer;
   background: #333;
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,8);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
 }
 
 #timeUp-icon, #timeDown-icon {
@@ -358,7 +387,7 @@
   margin: 0;
   border: none;
   outline: none;
-  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -390,12 +419,12 @@
   display: flex;
   flex-direction: row;
   flex: 1 1 0;
-  padding: 10px 5px;
+  padding: 10px;
   width: 100%;
   height: 100%;
   background: #222;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -409,6 +438,8 @@
   max-height: 100px;
   height: 100%;
   width: 100%;
+  text-align: left;
+  line-height: 17px;
   white-space: pre-wrap;
   word-break: break-word;
   word-wrap: break-word;
@@ -426,12 +457,71 @@
   width: 100%;
   color: #f6f6f6;
   background: transparent;
-  text-align: center;
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
-  line-height: 20px;
+  line-height: 17px;
   font-weight: 400;
   border: none;
   outline: none;
+  padding: 0;
 }
+
+#timerFinishedContainer {
+  position: fixed;
+  display: flex;
+  right: 5px;
+  bottom: 25px;
+  z-index: 10000;
+  max-width: 400px;
+  width: 100%;
+  max-height: 150px;
+  height: 100%;
+  background: #151515;
+  border: 1px solid #444;
+  border-radius: 8px;
+}
+
+#timerNotificationContainer {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  padding: 10px;
+}
+
+#timerMessageContainer {
+  padding-right: 10px;
+}
+
+#timerNotificationContainer p {
+  flex: 1 1 0;
+  overflow-y: auto;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  word-wrap: break-word;
+  margin: 0;
+}
+
+#timerNotificationContainer button {
+  max-width: 50px;
+  width: 100%;
+  max-height: 26px;
+  height: 100%;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+#timerNotificationContainer button:hover {
+  transform: translateY(-2px);
+}
+
+:global {
+  .os-theme-dark {
+    --os-handle-bg: #888;
+    --os-handle-bg-hover: #ccc;
+    --os-handle-bg-active: #ccc;
+    --os-track-bg: #444;
+  }
+}
+
 </style>

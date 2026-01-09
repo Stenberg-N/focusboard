@@ -56,6 +56,51 @@
   text-align: left;
 }
 
+#runningTimerContainer, #timesContainer {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: row;
+  justify-content: flex-end;
+  max-width: 150px;
+  max-height: 68px;
+  height: 100%;
+  width: 100%;
+  gap: 10px;
+  border: 1px solid red;
+}
+
+#runningTimerContainer button {
+  position: fixed;
+  right: 129px;
+  text-orientation: upright;
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  max-width: 20px;
+  height: 66px;
+  width: 100%;
+  transition: right 0.4s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+}
+
+#runningTimerContainer button.closed {
+  right: 0px;
+}
+
+#runningDisplayMinutes, #runningDisplaySeconds {
+  display: flex;
+  flex: 1 1 0;
+  max-width: 50px;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  background: #222;
+  border-radius: 8px;
+}
+
+#runningDisplayMinutes p, #runningDisplaySeconds p {
+  margin: 0;
+  font-size: 24px;
+}
+
 #notesMenuBarControls {
   display: flex;
   flex: 1 1 0;
@@ -72,14 +117,14 @@
   width: 100%;
   border: 0;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
 #notesMenuBarControls button:hover {
   background: #333;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(0,0,0,8);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
   transform: translateY(-4px);
 }
 
@@ -93,14 +138,14 @@
   border: 0;
   border-radius: 8px;
   margin-left: 10px;
-  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: box-shadow 0.2s;
 }
 
 #notesMenuBarControls select:hover {
   background: #333;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(0,0,0,8);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
 }
 
 #notesMenuBarControls select option {
@@ -146,7 +191,7 @@
   height: 100%;
   border: none;
   color: #f6f6f6;
-  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   border-radius: 8px;
   padding: 0;
   transition: transform 0.2s, box-shadow 0.2s;
@@ -156,7 +201,7 @@
   background: #333;
   cursor: pointer;
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,8);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.8);
 }
 
 #noteContainer {
@@ -303,7 +348,7 @@
   max-height: calc((100vh - 151px) / 2);
   height: 100%;
   min-width: calc((100vw - 140px) / 4);
-  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -410,7 +455,7 @@ textarea::-webkit-scrollbar {
   height: 32px;
   border: none;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,8);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -422,7 +467,7 @@ textarea::-webkit-scrollbar {
 
 .noteControls button:not(:disabled):hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,8);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
   cursor: pointer;
   background: #444;
 }
@@ -586,4 +631,74 @@ textarea::-webkit-scrollbar {
 
 .arrowUp-icon:hover, .arrowDown-icon:hover {
   transform: scale(1.1) translateY(-1px);
+}
+
+#mainViewTimerFinishedContainer {
+  position: fixed;
+  display: flex;
+  right: 5px;
+  bottom: 55px;
+  z-index: 10000;
+  max-width: 400px;
+  width: 100%;
+  max-height: 150px;
+  height: 100%;
+  background: #151515;
+  border: 1px solid #444;
+  border-radius: 8px;
+}
+
+#mainViewTimerNotificationContainer {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  padding: 10px;
+}
+
+#mainViewTimerMessageContainer {
+  padding-right: 10px;
+}
+
+#mainViewTimerNotificationContainer p {
+  flex: 1 1 0;
+  overflow-y: auto;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  word-wrap: break-word;
+  margin: 0;
+}
+
+#mainViewTimerNotificationContainer button {
+  background-color: #222;
+  color: #f6f6f6;
+  font-size: 16px;
+  border: none;
+  border-radius: 6px;
+  max-width: 50px;
+  width: 100%;
+  max-height: 26px;
+  height: 100%;
+  font-size: 14px;
+  margin-top: 4px;
+  padding: 2px 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#mainViewTimerNotificationContainer button:hover {
+  cursor: pointer;
+  background: #333;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
+}
+
+#mainViewTimerNotificationContainer button:hover {
+  transform: translateY(-2px);
+}
+
+.mainViewTimerSpacer {
+  display: flex;
+  flex: 1;
+  border-bottom: 1px solid #444;
 }
