@@ -60,5 +60,15 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
     .execute(&mut *conn)
     .await?;
 
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_notes_tab_parent_order
+        ON notes(tab_id, parent_id, order_id)"
+    ).execute(&mut *conn).await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_notes_parent_order
+        ON notes(parent_id, order_id)"
+    ).execute(&mut *conn).await?;
+
     Ok(db)
 }
