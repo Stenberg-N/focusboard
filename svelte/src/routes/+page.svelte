@@ -25,6 +25,8 @@
   let tabs = $state<Tab[]>([]);
   let uiVisibility = $state({ tabBar: true, runningTimer: true, });
   let topLevelNotes = $derived.by(() => {return notes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
+  let searchedNotes = $state<Note[]>([]);
+  let foundNotes = $derived.by(() => {return searchedNotes.filter(n => n.title === searchable) });
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
   let zoomedNoteId = $state<number | null>(null);
@@ -57,6 +59,10 @@
   let noteType = $state('basic');
 
   let statusBar = $state<HTMLSpanElement>()!;
+
+  let searchInput = $state<HTMLInputElement>();
+  let searchable = $state<string | null>(null);
+  let isSearching = $state<boolean>(false);
 
   let flipDurationMs = $state<number>(0);
 
@@ -153,6 +159,10 @@
 
   $effect(() => {
     topLevelNotes = notes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
+  });
+
+  $effect(() => {
+    foundNotes = searchedNotes.filter(n => n.title === searchable)
   });
 
   let showOverlay = $state<boolean>(false);
@@ -507,6 +517,38 @@
     }
   }
 
+  async function getAllNotes() {
+    try {
+      const data = await invoke<Note[]>('get_all_notes');
+      searchedNotes = data;
+    } catch (error) {
+      console.error("Failed to fetch all notes:", error);
+      statusBar.textContent = `Failed to fetch all notes: ${error}`;
+    }
+  }
+
+  async function searchNotes() {
+    getAllNotes();
+    isSearching = true;
+    searchable = searchInput!.value;
+
+    if (foundNotes.length <= 0) {
+      statusBar.textContent = 'No matches found on search';
+    } else if (foundNotes.length > 0) {
+      statusBar.textContent = 'Search completed';
+    }
+  }
+
+  async function closeNotesSearch() {
+    isSearching = false;
+    searchable = null;
+    foundNotes = [];
+
+    await loadNotes(currentTabId);
+
+    statusBar.textContent = 'Search closed';
+  }
+
   let tabBarIsOpen = $derived(uiVisibility.tabBar);
 
   function tabBarToggle() {
@@ -538,13 +580,15 @@
   {#if zoomedNoteId}
     <div role="button" tabindex="0" class="zoomedNoteOverlay" onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeZoom(); }}}>
       <div class="zoomedNoteContent">
-        <p class="warnMessage">The close button does not save any changes made to the note. Please remember to save the changes in the note edit mode before exiting the zoom.</p>
+        <p class="warnMessage">The close button does not save any changes made to the note. Hitting Escape will close the note without saving. Please remember to save the changes in the note edit mode before exiting the zoom.</p>
         <button class="zoomedNoteCloseBtn" onclick={closeZoom}>Close without saving</button>
         <ComponentNote
           note={notes.find(n => n.id === zoomedNoteId)!}
           {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
           setStatus={(msg) => (statusBar.textContent = msg)}
           reloadNotes={() => loadNotes(currentTabId)}
+          isSearching={isSearching}
+          getAllNotes={getAllNotes}
         ></ComponentNote>
       </div>
     </div>
@@ -578,8 +622,17 @@
         <button onclick={openLogs}>Open logs</button>
         <button onclick={backupDatabase}>Backup Database</button>
       </div>
+      <div id="searchBarContainer">
+        <input bind:this={searchInput}>
+        <button onclick={searchNotes}>Search</button>
+        {#if foundNotes!.length > 0}
+          <button onclick={closeNotesSearch}>Close</button>
+        {/if}
+      </div>
       <div id="runningTimerContainer">
-        <button id="runningTimerToggle" class:closed={!runningTimerIsOpen} onclick={runningTimerToggle}>{runningTimerIsOpen ? 'Close' : 'Open'}</button>
+        <button id="runningTimerToggle" class:closed={!runningTimerIsOpen} onclick={runningTimerToggle}>
+            <img id="runningTimerArrow" class:pointleft={!runningTimerIsOpen} src="down-arrow.svg" alt="runningTimerToggleIcon">
+        </button>
         {#if runningTimerIsOpen}
           <div id="timesContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
             <div id="runningDisplayMinutes">
@@ -621,20 +674,36 @@
             onconsider={handleDndNote}
             onfinalize={handleDndFinalizeNote}
           >
-            {#if currentTabId}
-              {#key topLevelNotes.map(n => n.id).join('-')}
-                {#each (previewNotes ?? topLevelNotes) as note (note.id)}
-                  <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
-                    <ComponentNote
-                      {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
-                      setStatus={(msg) => (statusBar.textContent = msg)}
-                      reloadNotes={() => loadNotes(currentTabId)}
-                    ></ComponentNote>
-                  </div>
-                {/each}
-              {/key}
+            {#if foundNotes!.length > 0}
+              {#each foundNotes as note (note.id)}
+                <div style="display: flex; flex: 1 1 0;">
+                  <ComponentNote
+                    {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
+                    setStatus={(msg) => (statusBar.textContent = msg)}
+                    reloadNotes={() => loadNotes(currentTabId)}
+                    isSearching={isSearching}
+                    getAllNotes={getAllNotes}
+                  ></ComponentNote>
+                </div>
+              {/each}
             {:else}
-              <p>No tabs available.</p>
+              {#if currentTabId}
+                {#key topLevelNotes.map(n => n.id).join('-')}
+                  {#each (previewNotes ?? topLevelNotes) as note (note.id)}
+                    <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
+                      <ComponentNote
+                        {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
+                        setStatus={(msg) => (statusBar.textContent = msg)}
+                        reloadNotes={() => loadNotes(currentTabId)}
+                        isSearching={isSearching}
+                        getAllNotes={getAllNotes}
+                      ></ComponentNote>
+                    </div>
+                  {/each}
+                {/key}
+              {:else}
+                <p>No tabs available.</p>
+              {/if}
             {/if}
           </div>
         </OverlayScrollbarsComponent>

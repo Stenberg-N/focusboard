@@ -63,6 +63,26 @@ pub async fn get_notes(
 }
 
 #[tauri::command]
+pub async fn get_all_notes(
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<Note>, String> {
+    let notes = query_as::<_, Note>(
+        r#"
+        SELECT * FROM notes
+        ORDER BY order_id ASC
+        "#,
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Failed to fetch notes: {:#}", e);
+        "Failed to load notes. Please try again.".to_string()
+    })?;
+
+    Ok(notes)
+}
+
+#[tauri::command]
 pub async fn create_note(
     pool: State<'_, SqlitePool>,
     title: String,

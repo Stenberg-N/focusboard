@@ -19,6 +19,8 @@
     noteOpenStates = $bindable<Record<number, boolean>>(),
     zoomedNote,
     zoomedNoteId = null,
+    isSearching = false,
+    getAllNotes,
   }: {
     note: Note;
     reloadNotes: () => void;
@@ -27,6 +29,8 @@
     noteOpenStates: Record<number, boolean>;
     zoomedNote: (id: number) => void;
     zoomedNoteId: number | null;
+    isSearching: boolean;
+    getAllNotes: () => Promise<void>;
   } = $props();
 
   let childNotes = $derived.by(() => {return notes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
@@ -58,7 +62,11 @@
       const newNote = await invoke<typeof note>('create_note', { title: 'Untitled', content: '', tabId: note.tab_id, noteType: 'basic', parentId: note.id });
       noteOpenStates[newNote.id] = true
 
-      await reloadNotes();
+      if (isSearching) {
+        await getAllNotes();
+      } else {
+        await reloadNotes();
+      }
 
       setStatus("Added sub-note successfully");
     } catch (error) {
@@ -82,7 +90,11 @@
       isEditing = false;
       noteOpenStates[note.id] = true;
 
-      await reloadNotes();
+      if (isSearching) {
+        await getAllNotes();
+      } else {
+        await reloadNotes();
+      }
 
       setStatus(`Updated note ${note.title} successfully`);
     } catch (error) {
@@ -104,7 +116,11 @@
     try {
       await invoke('delete_note', { id: note.id });
 
-      await reloadNotes();
+      if (isSearching) {
+        await getAllNotes();
+      } else {
+        await reloadNotes();
+      }
 
       setStatus(`Deleted note ${note.title} successfully`);
     } catch (error) {
@@ -200,7 +216,11 @@
       try {
         await invoke('reorder_notes', { noteIds: currentBatch.ids, tabId: currentBatch.tabId, parentId: currentBatch.parentId });
 
-        await reloadNotes();
+        if (isSearching) {
+          await getAllNotes();
+        } else {
+          await reloadNotes();
+        }
 
         setStatus('Sub-notes reordered successfully');
         break;
@@ -208,7 +228,11 @@
         console.error("Failed to reorder sub-notes:", error);
 
         if (attempt >= maxRetries) {
-          await reloadNotes();
+          if (isSearching) {
+            await getAllNotes();
+          } else {
+            await reloadNotes();
+          }
           setStatus(`Failed to reorder sub-notes! Retrying. Error: ${error}`);
           break;
         }
@@ -270,9 +294,11 @@
       <div class="spacer"></div>
       {#if !isZoomed}
         {#if !isEditing}
-          <div class="dragHandle" role="button" tabindex="0" ondblclick={e => { e.stopPropagation(); }} use:dragHandle>
-            <img id="dragHandle-icon" src="drag-handle.svg" alt="dragHandleIcon">
-          </div>
+          {#if !isSearching}
+            <div class="dragHandle" role="button" tabindex="0" ondblclick={e => { e.stopPropagation(); }} use:dragHandle>
+              <img id="dragHandle-icon" src="drag-handle.svg" alt="dragHandleIcon">
+            </div>
+          {/if}
         {/if}
       {/if}
     </div>
@@ -365,7 +391,7 @@
                 {#key childNotes.map(n => n.id).join('-')}
                   {#each (previewChildNotes ?? childNotes) as child (child.id)}
                     <div animate:flip={{ duration: flipDurationMs }} data-is-dnd-shadow-item-hint={(child as any)[SHADOW_ITEM_MARKER_PROPERTY_NAME] ?? false}>
-                      <ComponentNote note={child} {reloadNotes} {setStatus} {notes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} />
+                      <ComponentNote note={child} {reloadNotes} {setStatus} {notes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} />
                     </div>
                   {/each}
                 {/key}
