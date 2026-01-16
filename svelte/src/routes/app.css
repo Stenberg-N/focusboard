@@ -234,6 +234,10 @@
   outline: none;
 }
 
+#searchBarInput:focus {
+  border-color: #723fffd0;
+}
+
 #searchBarBtn:hover, #searchBarCloseBtn:hover {
   cursor: pointer;
   background: #333;

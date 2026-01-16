@@ -198,6 +198,9 @@
 {/if}
 <div id="timerContainer">
   <div id="timer">
+    {#if isEditing}
+      <p id="editingMessage">In edit mode</p>
+    {/if}
     <div id="timerCircle">
       <div id="controlsContainer">
         {#if isEditing}
@@ -226,8 +229,8 @@
             <input type="number" bind:value={editingMinutes} bind:this={minutesInput} min="0" onclick={() => setSelectedInput('minutes')} />
             <input type="number" bind:value={editingSeconds} bind:this={secondsInput} min="0" max="59" onclick={() => setSelectedInput('seconds')} />
           {:else}
-            <p id="timeMinutes">{displayMinutes.toString().padStart(2, '0')}</p>
-            <p id="timeSeconds">{displaySeconds.toString().padStart(2, '0')}</p>
+            <p id="timeMinutes" ondblclick={startEdit}>{displayMinutes.toString().padStart(2, '0')}</p>
+            <p id="timeSeconds" ondblclick={startEdit}>{displaySeconds.toString().padStart(2, '0')}</p>
           {/if}
         </div>
         <div id="notificationMessageBox" role="textbox" tabindex="0" ondblclick={startEdit}>
@@ -266,9 +269,19 @@
   border-bottom: 1px solid #444;
 }
 
+#editingMessage {
+  position: fixed;
+  top: 80px;
+  margin: 0;
+  display: flex;
+  align-self: center;
+  font-weight: 600;
+  animation: pulseOpacity 2s ease-in-out infinite;
+}
+
 #timer {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   flex: 1 1 0;
   min-height: 0;
   gap: 10px;
@@ -511,6 +524,18 @@
 
 #timerNotificationContainer button:hover {
   transform: translateY(-2px);
+}
+
+@keyframes pulseOpacity {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.2;
+  }
+  100% {
+    opacity: 0.5;
+  }
 }
 
 :global {

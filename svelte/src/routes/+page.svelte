@@ -579,7 +579,7 @@
   {/if}
 
   {#if zoomedNoteId}
-    <div role="button" tabindex="0" class="zoomedNoteOverlay" onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeZoom(); }}}>
+    <div role="button" tabindex="0" class="zoomedNoteOverlay" transition:fly={{ y: -100, duration: 200, easing: cubicInOut }} onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeZoom(); }}}>
       <div class="zoomedNoteContent">
         <p class="warnMessage">The close button does not save any changes made to the note. Hitting Escape will close the note without saving. Please remember to save the changes in the note edit mode before exiting the zoom.</p>
         <button class="zoomedNoteCloseBtn" onclick={closeZoom}>Close without saving</button>
@@ -627,9 +627,9 @@
         <button id="searchBarBtn" onclick={searchNotes}>
           <img id="searchIcon" src="search.svg" alt="searchIcon">
         </button>
-        <input id="searchBarInput" bind:this={searchInput}>
+        <input id="searchBarInput" bind:this={searchInput} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchNotes(); } if (e.key === 'Escape') { e.preventDefault(); closeNotesSearch(); }}}>
         {#if foundNotes!.length > 0}
-          <button id="searchBarCloseBtn" onclick={closeNotesSearch}>
+          <button transition:fly={{ y: -100, duration: 200, easing: cubicInOut }} id="searchBarCloseBtn" onclick={closeNotesSearch}>
             <img id="closeIcon" src="close.svg" alt="CloseIcon">
           </button>
         {/if}
