@@ -528,12 +528,13 @@
   }
 
   async function searchNotes() {
-    getAllNotes();
+    await getAllNotes();
     isSearching = true;
     searchable = searchInput!.value;
 
     if (foundNotes.length <= 0) {
       statusBar.textContent = 'No matches found on search';
+      isSearching = false;
     } else if (foundNotes.length > 0) {
       statusBar.textContent = 'Search completed';
     }
@@ -623,10 +624,14 @@
         <button onclick={backupDatabase}>Backup Database</button>
       </div>
       <div id="searchBarContainer">
-        <input bind:this={searchInput}>
-        <button onclick={searchNotes}>Search</button>
+        <button id="searchBarBtn" onclick={searchNotes}>
+          <img id="searchIcon" src="search.svg" alt="searchIcon">
+        </button>
+        <input id="searchBarInput" bind:this={searchInput}>
         {#if foundNotes!.length > 0}
-          <button onclick={closeNotesSearch}>Close</button>
+          <button id="searchBarCloseBtn" onclick={closeNotesSearch}>
+            <img id="closeIcon" src="close.svg" alt="CloseIcon">
+          </button>
         {/if}
       </div>
       <div id="runningTimerContainer">
