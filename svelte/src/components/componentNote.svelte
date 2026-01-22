@@ -6,6 +6,11 @@
   import ComponentNote from './componentNote.svelte';
   import { cubicInOut } from 'svelte/easing';
   import { type DndEvent, dragHandleZone, dragHandle, SHADOW_ITEM_MARKER_PROPERTY_NAME } from 'svelte-dnd-action';
+  import { Editor, EditorContent } from 'svelte-tiptap';
+  import StarterKit from '@tiptap/starter-kit';
+  import { TextStyle } from '@tiptap/extension-text-style';
+  import Color from '@tiptap/extension-color';
+  import { Extension } from '@tiptap/core';
 
   import type { Note } from '../types/types';
   import 'overlayscrollbars/overlayscrollbars.css';
@@ -47,6 +52,7 @@
   let isEditing = $state<boolean>(false);
   let editingTitle = $state('');
   let editingContent = $state('');
+  let editor = $state<Editor | null>(null);
 
   const isCategory = note.note_type === 'categorical';
 
@@ -56,6 +62,34 @@
   let collapseOpen = $derived(isEditing || open);
 
   const flipDurationMs = 200;
+
+  $effect(() => {
+    if (isEditing && !editor) {
+      editor = new Editor({
+        extensions: [
+          StarterKit,
+          TextStyle,
+          Color,
+          FontSize,
+        ],
+        content: editingContent,
+        onUpdate: ({ editor }) => {
+          editingContent = editor.getHTML();
+        },
+      });
+      editor.view.dom.addEventListener('keydown', handleKeyDown);
+    }
+  });
+
+  $effect(() => {
+    return () => {
+      if (editor) {
+        editor.view.dom.removeEventListener('keydown', handleKeyDown);
+        editor.destroy();
+        editor = null;
+      }
+    };
+  });
 
   async function addChild() {
     try {
@@ -85,6 +119,8 @@
 
   async function saveEdit() {
     try {
+      editingContent = editor?.getHTML() || '';
+
       await invoke('update_note', { id: note.id, title: editingTitle, content: editingContent || '' });
 
       isEditing = false;
@@ -129,16 +165,13 @@
     }
   }
 
-  function insertNewLineAtCursor(textarea: HTMLTextAreaElement) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const value = textarea.value;
-
-    textarea.value = value.slice(0, start) + '\n' + value.slice(end);
-
-    textarea.selectionStart = textarea.selectionEnd = start + 1;
-
-    textarea.dispatchEvent(new Event('input'));
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      saveEdit();
+    } else if (e.key === 'Escape') {
+      cancelEdit();
+    }
   }
 
   function clickOutside(node: HTMLElement) {
@@ -269,6 +302,65 @@
     }
   }
 
+  function applyFormat(command: string, value?: string) {
+    if (!editor) return;
+
+    switch (command) {
+      case 'underline':
+        editor.chain().focus().toggleUnderline().run();
+        break;
+      case 'bold':
+        editor.chain().focus().toggleBold().run();
+        break;
+      case 'fontSize':
+        if (value) {
+          editor.chain().focus().setFontSize(value).run();
+        }
+        break;
+      case 'foreColor':
+        if (value) {
+          editor.chain().focus().setColor(value).run();
+        }
+        break;
+    }
+  }
+
+  const FontSize = Extension.create({
+    name: 'fontSize',
+    addOptions() {
+      return {
+        types: ['textStyle'],
+      };
+    },
+    addGlobalAttributes() {
+      return [
+        {
+          types: this.options.types,
+          attributes: {
+            fontSize: {
+              default: null,
+              parseHTML: element => element.style.fontSize.replace(/['"]+/g, ''),
+              renderHTML: attributes => {
+                if (!attributes.fontSize) return {};
+                return { style: `font-size: ${attributes.fontSize}` };
+              },
+            },
+          },
+        },
+      ];
+    },
+    addCommands() {
+      return {
+        setFontSize: fontSize => ({ chain }) => {
+          return chain().setMark('textStyle', { fontSize }).run();
+        },
+        unsetFontSize: () => ({ chain }) => {
+          return chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run();
+        },
+      };
+    },
+  });
+
 </script>
 
 <div
@@ -277,19 +369,53 @@
   class:editing={isEditing}
   class:zoomed={isZoomed}
   role="article"
-  ondblclick={e => { e.stopPropagation(); startEdit(); }}
+  ondblclick={(e) => {
+    if (isEditing) return;
+    e.stopPropagation();
+    startEdit();
+  }}
   use:clickOutside
 >
   <div id="noteTitleBox">
     <div id="dragZoomContainer">
       {#if !isCategory}
-      <button class="zoomBtn" onclick={() => zoomedNote(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>
-        {#if isZoomed || isEditing}
-          <img id="zoom-icon-disabled" src="zoom.svg" alt="ZoomIconDisabled">
-        {:else}
-          <img id="zoom-icon" src="zoom.svg" alt="ZoomIcon">
+        <button class="zoomBtn" onclick={() => zoomedNote(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>
+          {#if isZoomed || isEditing}
+            <img id="zoom-icon-disabled" src="zoom.svg" alt="ZoomIconDisabled">
+          {:else}
+            <img id="zoom-icon" src="zoom.svg" alt="ZoomIcon">
+          {/if}
+        </button>
+        {#if isEditing}
+          <div class="editorToolbar">
+            <button onclick={() => applyFormat('underline')}>Underline</button>
+            <button onclick={() => applyFormat('bold')}>Bold</button>
+            <select
+              onchange={(e) => {
+                const target = e.target as HTMLSelectElement | null;
+                if (target?.value) {
+                  applyFormat('fontSize', target.value);
+                }
+              }}
+            >
+              <option value="">Font size</option>
+              <option value="12px">Small</option>
+              <option value="16px">Normal</option>
+              <option value="24px">Large</option>
+              <option value="36px">Huge</option>
+            </select>
+            <input
+              type="color"
+              onchange={(e) => {
+                const target = e.target as HTMLInputElement | null;
+                if (target?.value) {
+                  applyFormat('foreColor', target.value);
+                }
+              }}
+              title="Text color"
+            />
+          </div>
         {/if}
-      </button>
       {/if}
       <div class="spacer"></div>
       {#if !isZoomed}
@@ -348,24 +474,13 @@
         <div style="overflow: hidden;" transition:slide={{ delay: 100, duration: 400, easing: cubicInOut }}>
           {#if isEditing}
             {#if !isCategory}
-              <textarea
-                bind:value={editingContent}
-                placeholder="Enter to save | Shift+Enter for new line | Esc to cancel"
-                rows="16"
-                onkeydown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    saveEdit();
-                  } else if (e.key === 'Enter' && e.shiftKey) {
-                    e.preventDefault();
-                    insertNewLineAtCursor(e.currentTarget);
-                  } else if (e.key === 'Escape') {
-                    cancelEdit();
-                  }
-                }}
-              >
-              </textarea>
-              <div class="noteControls">
+              {#if editor}
+                <EditorContent
+                  editor={editor}
+                  class="noteContentEditable"
+                />
+              {/if}
+              <div class="noteControls" style="margin-top: 10px;">
                 <button id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
                 <button id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
               </div>
@@ -375,7 +490,7 @@
             {/if}
           {:else}
             {#if !isCategory}
-              <p class="noteContent">{note.content || 'No content'}</p>
+              <p class="noteContent">{@html note.content || 'No content'}</p>
             {:else if isCategory}
               <div class="subNotes" use:dragHandleZone={{
                 items: previewChildNotes ?? childNotes,

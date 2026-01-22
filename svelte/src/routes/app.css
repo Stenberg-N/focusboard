@@ -455,7 +455,7 @@
   width: 100%;
 }
 
-.note.editing textarea, .note textarea {
+.note.editing .tiptap.ProseMirror, .note .tiptap.ProseMirror {
   max-height: 550px;
   width: 100%;
   max-width: 100%;
@@ -468,14 +468,12 @@
   border: 1px solid #888;
   border-radius: 6px;
   outline: none;
+  text-align: left;
+  padding: 5px;
 }
 
-.note.editing textarea:focus, .note textarea:focus {
+.note.editing .tiptap.ProseMirror:focus, .note .tiptap.ProseMirror:focus {
   border-color: #723fffd0;
-}
-
-textarea::-webkit-scrollbar {
-  display: none;
 }
 
 .note.zoomed {
