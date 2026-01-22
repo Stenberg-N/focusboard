@@ -483,6 +483,8 @@
 
 .noteTitle {
   margin: 0;
+  width: fit-content;
+  align-self: center;
 }
 
 .note:hover {
@@ -648,8 +650,9 @@
   z-index: 10000;
   top: 0;
   left: 0;
+  bottom: 20px;
   width: 100vw;
-  height: 100vh;
+  height: 100vh - 20px;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(15px);
 }

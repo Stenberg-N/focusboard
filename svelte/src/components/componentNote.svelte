@@ -78,17 +78,15 @@
         },
       });
       editor.view.dom.addEventListener('keydown', handleKeyDown);
+    } else if (!isEditing) {
+      return () => {
+        if (editor) {
+          editor.view.dom.removeEventListener('keydown', handleKeyDown);
+          editor.destroy();
+          editor = null;
+        }
+      };
     }
-  });
-
-  $effect(() => {
-    return () => {
-      if (editor) {
-        editor.view.dom.removeEventListener('keydown', handleKeyDown);
-        editor.destroy();
-        editor = null;
-      }
-    };
   });
 
   async function addChild() {
@@ -176,8 +174,10 @@
 
   function clickOutside(node: HTMLElement) {
     const handleClick = (event: MouseEvent) => {
-      if (isEditing && node && !node.contains(event.target as Node)) {
-        saveEdit();
+      if (!isZoomed) {
+        if (isEditing && node && !node.contains(event.target as Node)) {
+          saveEdit();
+        }
       }
     };
     document.addEventListener('click', handleClick, true);
@@ -369,11 +369,6 @@
   class:editing={isEditing}
   class:zoomed={isZoomed}
   role="article"
-  ondblclick={(e) => {
-    if (isEditing) return;
-    e.stopPropagation();
-    startEdit();
-  }}
   use:clickOutside
 >
   <div id="noteTitleBox">
@@ -464,7 +459,7 @@
         }}
       />
     {:else}
-      <h3 class="noteTitle">{note.title || 'Untitled'}</h3>
+      <h3 class="noteTitle" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{note.title || 'Untitled'}</h3>
     {/if}
   </div>
 
@@ -490,7 +485,7 @@
             {/if}
           {:else}
             {#if !isCategory}
-              <p class="noteContent">{@html note.content || 'No content'}</p>
+              <p class="noteContent" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{@html note.content || 'No content'}</p>
             {:else if isCategory}
               <div class="subNotes" use:dragHandleZone={{
                 items: previewChildNotes ?? childNotes,
