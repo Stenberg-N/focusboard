@@ -53,6 +53,7 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS timers (
             id INTEGER PRIMARY KEY,
+            initial_duration INTEGER,
             duration INTEGER,
             message TEXT
         )"

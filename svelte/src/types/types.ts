@@ -20,6 +20,7 @@ export type Tab = {
 
 export type Timer = {
   id: number;
+  initial_duration: number;
   duration: number;
   message: string | null;
 }

@@ -35,6 +35,7 @@ pub struct Tab {
 #[derive(FromRow, Serialize, Deserialize, Debug, Clone)]
 pub struct Timer {
     pub id: i64,
+    pub initial_duration: i32,
     pub duration: i32,
     pub message: String,
 }
@@ -429,15 +430,17 @@ pub async fn reorder_tabs(
 #[tauri::command]
 pub async fn create_timer(
     pool: State<'_, SqlitePool>,
+    initial_duration: i32,
     duration: i32,
     message: String
 ) -> Result<Timer, String> {
     sqlx::query(
         r#"
-        INSERT OR REPLACE INTO timers (id, duration, message)
-        VALUES (1, ?, ?)
+        INSERT OR REPLACE INTO timers (id, initial_duration, duration, message)
+        VALUES (1, ?, ?, ?)
         "#
     )
+    .bind(initial_duration)
     .bind(duration)
     .bind(message)
     .execute(&*pool)

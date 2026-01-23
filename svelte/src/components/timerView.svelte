@@ -44,7 +44,7 @@
     try {
       const timer: Timer = await invoke('get_timer');
 
-      initialSeconds = timer.duration;
+      initialSeconds = timer.initial_duration;
       remainingSeconds = timer.duration;
       timerMessage = timer.message;
 
@@ -52,7 +52,9 @@
 
     } catch (error) {
       console.error("Failed to load timer:", error);
-      setStatus(`Failed to load timer: ${error}`);
+      setStatus(`Failed to load timer: ${error} | Creating timer`);
+
+      await invoke('create_timer', { initialDuration: 0, duration: 0, message: '' });
 
       initialSeconds = 0;
       remainingSeconds = 0;
@@ -82,6 +84,11 @@
     remainingSeconds = secondsLeft;
     isRunning = true;
     interval = setInterval(tickDown, 1000);
+
+    localStorage.setItem(
+      timerStateKey,
+      JSON.stringify({ endAt, isRunning: true, savedInterval: interval, setMessage: timerMessage })
+    );
   }
 
   $effect(() => {
@@ -92,9 +99,9 @@
   async function setTimer() {
     const totalSeconds = (editingMinutes * 60) + editingSeconds;
     try {
-      const timer: Timer = await invoke('create_timer', { duration: totalSeconds, message: editingMessage });
+      const timer: Timer = await invoke('create_timer', { initialDuration: totalSeconds, duration: totalSeconds, message: editingMessage });
 
-      initialSeconds = timer.duration;
+      initialSeconds = timer.initial_duration;
       remainingSeconds = timer.duration;
       timerMessage = timer.message;
       isEditing = false;
@@ -109,8 +116,8 @@
 
   function startEdit() {
     isEditing = true;
-    editingMinutes = Math.floor(initialSeconds / 60);
-    editingSeconds = initialSeconds % 60;
+    editingMinutes = Math.floor(remainingSeconds / 60);
+    editingSeconds = remainingSeconds % 60;
     editingMessage = timerMessage;
   }
 
@@ -154,6 +161,10 @@
     }
     isRunning = false;
     localStorage.removeItem(timerStateKey);
+  }
+
+  async function updateDurationWithRemaining() {
+    await invoke('create_timer', { initialDuration: initialSeconds, duration: remainingSeconds, message: timerMessage });
   }
 
   function resetTimer() {
@@ -218,12 +229,12 @@
           <div class="timerControls">
             <button class="timerButton" onclick={startEdit}>Edit</button>
             <button class="timerButton" onclick={startTimer} disabled={isRunning || remainingSeconds <= 0}>Start</button>
-            <button class="timerButton" onclick={stopTimer} disabled={!isRunning}>Stop</button>
+            <button class="timerButton" onclick={() => {stopTimer(); updateDurationWithRemaining(); }} disabled={!isRunning}>Stop</button>
             <button class="timerButton" onclick={resetTimer}>Reset</button>
           </div>
         {/if}
       </div>
-      <div id="contentArea">
+      <div id="contentArea" role="none" onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); } else if (e.key === 'Enter') { e.preventDefault(); setTimer(); } }}>
         <div id="timeValues">
           {#if isEditing}
             <input type="number" bind:value={editingMinutes} bind:this={minutesInput} min="0" onclick={() => setSelectedInput('minutes')} />
@@ -423,6 +434,7 @@
   width: 100%;
   background: #151515;
   border-radius: 8px;
+  outline: none;
   padding: 15px;
 }
 
@@ -440,7 +452,6 @@
 }
 
 #messageContainer:hover {
-  cursor: pointer;
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(0,0,0,1);
 }
@@ -471,6 +482,7 @@
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 17px;
+  resize: none;
   font-weight: 400;
   border: none;
   outline: none;
