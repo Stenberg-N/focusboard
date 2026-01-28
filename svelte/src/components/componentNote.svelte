@@ -53,6 +53,8 @@
   let editingTitle = $state('');
   let editingContent = $state('');
   let editor = $state<Editor | null>(null);
+  let titleEditor = $state<Editor | null>(null);
+  let SelectedContentType = $state<'noteTitle' | 'noteContent' | null>(null);
 
   const isCategory = note.note_type === 'categorical';
 
@@ -64,26 +66,47 @@
   const flipDurationMs = 200;
 
   $effect(() => {
-    if (isEditing && !editor) {
-      editor = new Editor({
-        extensions: [
-          StarterKit,
-          TextStyle,
-          Color,
-          FontSize,
-        ],
-        content: editingContent,
-        onUpdate: ({ editor }) => {
-          editingContent = editor.getHTML();
-        },
-      });
-      editor.view.dom.addEventListener('keydown', handleKeyDown);
+    if (isEditing) {
+      if (!editor) {
+        editor = new Editor({
+          extensions: [
+            StarterKit,
+            TextStyle,
+            Color,
+            FontSize,
+          ],
+          content: editingContent,
+          onUpdate: ({ editor }) => { editingContent = editor.getHTML(); },
+          onFocus: () => setSelectedContentType('noteContent'),
+        });
+        editor.view.dom.addEventListener('keydown', handleKeyDown);
+      }
+
+      if (!titleEditor) {
+        titleEditor = new Editor({
+          extensions: [
+            StarterKit,
+            TextStyle,
+            Color,
+            FontSize,
+          ],
+          content: editingTitle,
+          onUpdate: ({ editor }) => { editingTitle = editor.getHTML(); },
+          onFocus: () => setSelectedContentType('noteTitle'),
+        });
+        titleEditor.view.dom.addEventListener('keydown', handleKeyDown);
+      }
     } else if (!isEditing) {
       return () => {
         if (editor) {
           editor.view.dom.removeEventListener('keydown', handleKeyDown);
           editor.destroy();
           editor = null;
+        }
+        if (titleEditor) {
+          titleEditor.view.dom.removeEventListener('keydown', handleKeyDown);
+          titleEditor.destroy;
+          titleEditor = null;
         }
       };
     }
@@ -115,9 +138,25 @@
     editingContent = note.content;
   }
 
+  function stripHtml(html: string): string {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent?.trim() || '';
+  }
+
+  function setSelectedContentType(type: 'noteTitle' | 'noteContent') {
+    SelectedContentType = type;
+  }
+
+  function getActiveEditor() {
+    if (SelectedContentType === 'noteTitle') return titleEditor;
+    if (SelectedContentType === 'noteContent') return editor;
+    return editor ?? titleEditor;
+  }
+
   async function saveEdit() {
     try {
       editingContent = editor?.getHTML() || '';
+      editingTitle = titleEditor?.getHTML() || '';
 
       await invoke('update_note', { id: note.id, title: editingTitle, content: editingContent || '' });
 
@@ -130,7 +169,8 @@
         await reloadNotes();
       }
 
-      setStatus(`Updated note ${note.title} successfully`);
+      const plainTitle = stripHtml(editingTitle) || 'Untitled';
+      setStatus(`Updated note ${plainTitle} successfully`);
     } catch (error) {
       console.error('update_note failed:', error);
       setStatus(`Failed to update note: ${error}`);
@@ -156,7 +196,8 @@
         await reloadNotes();
       }
 
-      setStatus(`Deleted note ${note.title} successfully`);
+      const plainTitle = stripHtml(editingTitle) || 'Untitled';
+      setStatus(`Deleted note ${plainTitle} successfully`);
     } catch (error) {
       console.error('delete_note failed:', error);
       setStatus(`Failed to delete note: ${error}`);
@@ -303,23 +344,24 @@
   }
 
   function applyFormat(command: string, value?: string) {
-    if (!editor) return;
+    const targetEditor = getActiveEditor();
+    if (!targetEditor) return;
 
     switch (command) {
       case 'underline':
-        editor.chain().focus().toggleUnderline().run();
+        targetEditor.chain().focus().toggleUnderline().run();
         break;
       case 'bold':
-        editor.chain().focus().toggleBold().run();
+        targetEditor.chain().focus().toggleBold().run();
         break;
       case 'fontSize':
         if (value) {
-          editor.chain().focus().setFontSize(value).run();
+          targetEditor.chain().focus().setFontSize(value).run();
         }
         break;
       case 'foreColor':
         if (value) {
-          editor.chain().focus().setColor(value).run();
+          targetEditor.chain().focus().setColor(value).run();
         }
         break;
     }
@@ -383,8 +425,12 @@
         </button>
         {#if isEditing}
           <div class="editorToolbar">
-            <button onclick={() => applyFormat('underline')}>Underline</button>
-            <button onclick={() => applyFormat('bold')}>Bold</button>
+            <button onclick={() => applyFormat('underline')}>
+              <img id="textUnderline-icon" src="underline.svg" alt="textUnderline">
+            </button>
+            <button onclick={() => applyFormat('bold')}>
+              <img id="textBold-icon" src="boldtext.svg" alt="textBold">
+            </button>
             <select
               onchange={(e) => {
                 const target = e.target as HTMLSelectElement | null;
@@ -396,11 +442,12 @@
               <option value="">Font size</option>
               <option value="12px">Small</option>
               <option value="16px">Normal</option>
-              <option value="24px">Large</option>
+              <option value="20px">Large</option>
               <option value="36px">Huge</option>
             </select>
             <input
               type="color"
+              id="colorSelectBar"
               onchange={(e) => {
                 const target = e.target as HTMLInputElement | null;
                 if (target?.value) {
@@ -446,20 +493,14 @@
       <div class="infoText">
         <small>Press Esc to cancel | Press Enter or click outside to save</small>
       </div>
-      <input
-        bind:value={editingTitle}
-        placeholder="Title | Enter to save"
-        onkeydown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            saveEdit();
-          } else if (e.key === 'Escape') {
-            cancelEdit();
-          }
-        }}
-      />
+      {#if titleEditor}
+        <EditorContent
+          editor={titleEditor}
+          class="noteTitleEditable"
+        />
+      {/if}
     {:else}
-      <h3 class="noteTitle" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{note.title || 'Untitled'}</h3>
+      <h3 class="noteTitle" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{@html note.title || 'Untitled'}</h3>
     {/if}
   </div>
 
