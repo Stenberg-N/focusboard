@@ -16,6 +16,7 @@
   import LoaderOverlay from '../components/loaderOverlay.svelte';
   import ComponentNote from '../components/componentNote.svelte';
   import TimerView from '../components/timerView.svelte';
+  import CalendarView from '../components/calendarView.svelte';
 
   import type { Note, Tab } from '../types/types';
   import './app.css';
@@ -26,11 +27,11 @@
   let uiVisibility = $state({ tabBar: true, runningTimer: true, });
   let topLevelNotes = $derived.by(() => {return notes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
   let searchedNotes = $state<Note[]>([]);
-  let foundNotes = $derived.by(() => {return searchedNotes.filter(n => n.title === searchable) });
+  let foundNotes = $derived.by(() => {return searchedNotes.filter(n => stripHtml(n.title) === searchable?.trim().toLocaleLowerCase()) });
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
   let zoomedNoteId = $state<number | null>(null);
-  let timerViewVisible = $state<boolean>(false);
+  let currentView = $state<'timerView' | 'calendarView' | 'notesView'>('notesView');
   let noteOpenStates = $state<Record<number, boolean>>({});
 
   setContext('noteOpenStates', () => noteOpenStates);
@@ -162,7 +163,7 @@
   });
 
   $effect(() => {
-    foundNotes = searchedNotes.filter(n => n.title === searchable)
+    foundNotes = searchedNotes.filter(n => stripHtml(n.title) === searchable?.trim().toLowerCase())
   });
 
   let showOverlay = $state<boolean>(false);
@@ -176,6 +177,11 @@
     }
     showOverlay = true;
   });
+
+  function stripHtml(html: string): string {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent?.trim().toLowerCase() || '';
+  }
 
   async function openLogs() {
     const logDir = await appLogDir();
@@ -595,7 +601,7 @@
     </div>
   {/if}
 
-  {#if isRunningTimerFinished && !timerViewVisible}
+  {#if isRunningTimerFinished}
     <div id="mainViewTimerFinishedContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
       <div id="mainViewTimerNotificationContainer">
         <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
@@ -610,30 +616,39 @@
   {/if}
 
   <div id="menuBar">
-    {#if timerViewVisible}
+    {#if currentView === 'timerView'}
       <h2>Timer</h2>
     {:else}
-      <h2>Notes</h2>
-      <div id="notesMenuBarControls">
-        <select bind:value={noteType}>
-          <option value="basic">Basic</option>
-          <option value="categorical">Categorical</option>
-        </select>
-        <button onclick={addNote} disabled={!currentTabId}>Create Note</button>
-        <button onclick={openLogs}>Open logs</button>
-        <button onclick={backupDatabase}>Backup Database</button>
-      </div>
-      <div id="searchBarContainer">
-        <button id="searchBarBtn" onclick={searchNotes}>
-          <img id="searchIcon" src="search.svg" alt="searchIcon">
-        </button>
-        <input id="searchBarInput" bind:this={searchInput} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchNotes(); } if (e.key === 'Escape') { e.preventDefault(); closeNotesSearch(); }}}>
-        {#if foundNotes!.length > 0}
-          <button transition:fly={{ y: -100, duration: 200, easing: cubicInOut }} id="searchBarCloseBtn" onclick={closeNotesSearch}>
-            <img id="closeIcon" src="close.svg" alt="CloseIcon">
+      {#if currentView === 'calendarView'}
+        <h2>Calendar</h2>
+      {:else}
+        <h2>Notes</h2>
+        <div id="notesMenuBarControls">
+          <select bind:value={noteType}>
+            <option value="basic">Basic</option>
+            <option value="categorical">Categorical</option>
+          </select>
+          <button onclick={addNote} disabled={!currentTabId}>Create Note</button>
+          <button onclick={openLogs}>Open logs</button>
+          <button onclick={backupDatabase}>Backup Database</button>
+        </div>
+        <div id="searchBarContainer">
+          <button id="searchBarBtn" onclick={searchNotes}>
+            <img id="searchIcon" src="search.svg" alt="searchIcon">
           </button>
-        {/if}
-      </div>
+          <div id="searchBarInputContainer">
+            <input id="searchBarInput" bind:this={searchInput} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchNotes(); } if (e.key === 'Escape') { e.preventDefault(); closeNotesSearch(); }}}>
+            <button onclick={() => {searchInput!.value = ''; searchable = null; statusBar.textContent = 'Search cleared'}}>
+              <img id="clearSearchIcon" src="close.svg" alt="clearSearchIcon">
+            </button>
+          </div>
+          {#if foundNotes!.length > 0}
+            <button transition:fly={{ y: -100, duration: 200, easing: cubicInOut }} id="searchBarCloseBtn" onclick={closeNotesSearch}>
+              <img id="closeIcon" src="close.svg" alt="CloseIcon">
+            </button>
+          {/if}
+        </div>
+      {/if}
       <div id="runningTimerContainer">
         <button id="runningTimerToggle" class:closed={!runningTimerIsOpen} onclick={runningTimerToggle}>
             <img id="runningTimerArrow" class:pointleft={!runningTimerIsOpen} src="down-arrow.svg" alt="runningTimerToggleIcon">
@@ -652,21 +667,25 @@
     {/if}
   </div>
 
-  <div id="middle" class:enlarged={!tabBarIsOpen || timerViewVisible}>
+  <div id="middle" class:enlarged={!tabBarIsOpen || currentView !== 'notesView'}>
     <div id="navigationBar">
-      <button id="timerViewBtn" onclick={() => (timerViewVisible = !timerViewVisible)}>
-        {#if timerViewVisible}
-          <img id="noteIcon" src="note.svg" alt="noteIcon">
-        {:else}
-          <img id="clockIcon" src="clock.svg" alt="clockIcon">
-        {/if}
+      <button id="noteViewBtn" class:selected={currentView === 'notesView'} onclick={() => currentView = 'notesView'}>
+        <img id="noteIcon" src="note.svg" alt="noteIcon">
+      </button>
+      <button id="timerViewBtn" class:selected={currentView === 'timerView'} onclick={() => currentView = 'timerView'}>
+        <img id="clockIcon" src="clock.svg" alt="clockIcon">
+      </button>
+      <button id="calendarViewBtn" class:selected={currentView === 'calendarView'} onclick={() => currentView = 'calendarView'}>
+        calendar
       </button>
     </div>
 
-    {#if timerViewVisible}
-      <TimerView setStatus={(msg) => (statusBar.textContent = msg)} />
-    {:else}
-      <div id="noteContainer" class:enlarged={!tabBarIsOpen}>
+    <div id="noteContainer" class:enlarged={!tabBarIsOpen}>
+      {#if currentView === 'timerView'}
+        <TimerView setStatus={(msg) => (statusBar.textContent = msg)} />
+      {:else if currentView === 'calendarView'}
+        <CalendarView />
+      {:else}
         <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
           <div id="innerNoteContainer" use:dragHandleZone={{
             items: previewNotes ?? topLevelNotes,
@@ -712,11 +731,11 @@
             {/if}
           </div>
         </OverlayScrollbarsComponent>
-      </div>
-    {/if}
+      {/if}
+    </div>
   </div>
 
-  {#if tabBarIsOpen && !timerViewVisible}
+  {#if tabBarIsOpen && currentView === 'notesView'}
     <div id="tabBar" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }}>
       <button id="buttonAddTab" onclick={addTab}>Add Tab</button>
       <div id="tabList" use:dndzone={{
@@ -764,7 +783,7 @@
 
   <div id="statusBar">
     <span bind:this={statusBar}></span>
-    {#if !timerViewVisible}
+    {#if currentView === 'notesView'}
       <button id="toggleTabBar" onclick={tabBarToggle}>
         {#if tabBarIsOpen}
           <img class="arrowDown-icon" src="down-arrow.svg" alt="arrowDownIcon">

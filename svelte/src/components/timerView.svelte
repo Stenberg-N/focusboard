@@ -1,9 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
-  import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
-  import { fly } from 'svelte/transition';
-  import { cubicInOut } from 'svelte/easing';
 
   import type { Timer } from "../types/types";
   import 'overlayscrollbars/overlayscrollbars.css';
@@ -194,68 +191,53 @@
 
 </script>
 
-{#if isTimerFinished}
-  <div id="timerFinishedContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
-      <div id="timerNotificationContainer">
-        <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-          <div id="timerMessageContainer">
-            <p>{timerMessage || 'Timer complete!'}</p>
-          </div>
-        </OverlayScrollbarsComponent>
-        <div class="timerViewSpacer"></div>
-        <button class="timerButton" onclick={() => isTimerFinished = false}>OK</button>
-      </div>
-  </div>
-{/if}
-<div id="timerContainer">
-  <div id="timer">
-    {#if isEditing}
-      <p id="editingMessage">In edit mode</p>
-    {/if}
-    <div id="timerCircle">
-      <div id="controlsContainer">
+<div id="timer">
+  {#if isEditing}
+    <p id="editingMessage">In edit mode</p>
+  {/if}
+  <div id="timerCircle">
+    <div id="controlsContainer">
+      {#if isEditing}
+        <div class="timerControls">
+          <button class="timerButton" onclick={setTimer}>Save</button>
+          <button class="timerButton" onclick={increase}>
+            <img id="timeUp-icon" src="up-arrow.svg" alt="upArrow">
+          </button>
+          <button class="timerButton" onclick={decrease}>
+            <img id="timeDown-icon" src="down-arrow.svg" alt="downArrow">
+          </button>
+          <button class="timerButton" onclick={cancelEdit}>Cancel</button>
+        </div>
+      {:else}
+        <div class="timerControls">
+          <button class="timerButton" onclick={startEdit} disabled={isRunning}>Edit</button>
+          <button class="timerButton" onclick={startTimer} disabled={isRunning || remainingSeconds <= 0}>Start</button>
+          <button class="timerButton" onclick={() => {stopTimer(); updateDurationWithRemaining(); }} disabled={!isRunning}>Stop</button>
+          <button class="timerButton" onclick={resetTimer}>Reset</button>
+        </div>
+      {/if}
+    </div>
+    <div id="contentArea" role="none" onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); } else if (e.key === 'Enter') { e.preventDefault(); setTimer(); } }}>
+      <div id="timeValues">
         {#if isEditing}
-          <div class="timerControls">
-            <button class="timerButton" onclick={setTimer}>Save</button>
-            <button class="timerButton" onclick={increase}>
-              <img id="timeUp-icon" src="up-arrow.svg" alt="upArrow">
-            </button>
-            <button class="timerButton" onclick={decrease}>
-              <img id="timeDown-icon" src="down-arrow.svg" alt="downArrow">
-            </button>
-            <button class="timerButton" onclick={cancelEdit}>Cancel</button>
-          </div>
+          <input type="number" bind:value={editingMinutes} bind:this={minutesInput} min="0" onclick={() => setSelectedInput('minutes')} />
+          <input type="number" bind:value={editingSeconds} bind:this={secondsInput} min="0" max="59" onclick={() => setSelectedInput('seconds')} />
         {:else}
-          <div class="timerControls">
-            <button class="timerButton" onclick={startEdit}>Edit</button>
-            <button class="timerButton" onclick={startTimer} disabled={isRunning || remainingSeconds <= 0}>Start</button>
-            <button class="timerButton" onclick={() => {stopTimer(); updateDurationWithRemaining(); }} disabled={!isRunning}>Stop</button>
-            <button class="timerButton" onclick={resetTimer}>Reset</button>
-          </div>
+          <p id="timeMinutes" ondblclick={startEdit}>{displayMinutes.toString().padStart(2, '0')}</p>
+          <p id="timeSeconds" ondblclick={startEdit}>{displaySeconds.toString().padStart(2, '0')}</p>
         {/if}
       </div>
-      <div id="contentArea" role="none" onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); } else if (e.key === 'Enter') { e.preventDefault(); setTimer(); } }}>
-        <div id="timeValues">
+      <div id="notificationMessageBox" role="textbox" tabindex="0" ondblclick={startEdit}>
+        <div id="messageContainer">
           {#if isEditing}
-            <input type="number" bind:value={editingMinutes} bind:this={minutesInput} min="0" onclick={() => setSelectedInput('minutes')} />
-            <input type="number" bind:value={editingSeconds} bind:this={secondsInput} min="0" max="59" onclick={() => setSelectedInput('seconds')} />
+            <textarea bind:value={editingMessage} placeholder="Set notification message here"></textarea>
           {:else}
-            <p id="timeMinutes" ondblclick={startEdit}>{displayMinutes.toString().padStart(2, '0')}</p>
-            <p id="timeSeconds" ondblclick={startEdit}>{displaySeconds.toString().padStart(2, '0')}</p>
-          {/if}
-        </div>
-        <div id="notificationMessageBox" role="textbox" tabindex="0" ondblclick={startEdit}>
-          <div id="messageContainer">
-            {#if isEditing}
-              <textarea bind:value={editingMessage} placeholder="Set notification message here"></textarea>
+            {#if timerMessage!.length == 0}
+              <p class="message">No notification message set</p>
             {:else}
-              {#if timerMessage!.length == 0}
-                <p class="message">No notification message set</p>
-              {:else}
-                <p class="message">{timerMessage}</p>
-              {/if}
+              <p class="message">{timerMessage}</p>
             {/if}
-          </div>
+          {/if}
         </div>
       </div>
     </div>
@@ -263,22 +245,6 @@
 </div>
 
 <style>
-  #timerContainer {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  min-height: 0;
-  border: 1px solid #444;
-  border-radius: 18px 0 0 0;
-  border-bottom: none;
-  border-right: none;
-}
-
-.timerViewSpacer {
-  display: flex;
-  flex: 1;
-  border-bottom: 1px solid #444;
-}
 
 #editingMessage {
   position: fixed;
@@ -487,55 +453,6 @@
   border: none;
   outline: none;
   padding: 0;
-}
-
-#timerFinishedContainer {
-  position: fixed;
-  display: flex;
-  right: 5px;
-  bottom: 25px;
-  z-index: 10000;
-  max-width: 400px;
-  width: 100%;
-  max-height: 150px;
-  height: 100%;
-  background: #151515;
-  border: 1px solid #444;
-  border-radius: 8px;
-}
-
-#timerNotificationContainer {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  padding: 10px;
-}
-
-#timerMessageContainer {
-  padding-right: 10px;
-}
-
-#timerNotificationContainer p {
-  flex: 1 1 0;
-  overflow-y: auto;
-  text-align: left;
-  white-space: pre-wrap;
-  word-break: break-word;
-  word-wrap: break-word;
-  margin: 0;
-}
-
-#timerNotificationContainer button {
-  max-width: 50px;
-  width: 100%;
-  max-height: 26px;
-  height: 100%;
-  font-size: 14px;
-  margin-top: 4px;
-}
-
-#timerNotificationContainer button:hover {
-  transform: translateY(-2px);
 }
 
 @keyframes pulseOpacity {
