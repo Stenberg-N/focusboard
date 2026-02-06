@@ -26,6 +26,8 @@
     zoomedNoteId = null,
     isSearching = false,
     getAllNotes,
+    startDeleteNote,
+    deleteNoteId = null,
   }: {
     note: Note;
     reloadNotes: () => void;
@@ -36,6 +38,8 @@
     zoomedNoteId: number | null;
     isSearching: boolean;
     getAllNotes: () => Promise<void>;
+    startDeleteNote: (id: number) => void;
+    deleteNoteId: number | null;
   } = $props();
 
   let childNotes = $derived.by(() => {return notes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
@@ -183,24 +187,6 @@
     if (hasSavedState) {
       noteOpenStates[note.id] = originalOpenState;
       hasSavedState = false;
-    }
-  }
-
-  async function removeNote() {
-    try {
-      await invoke('delete_note', { id: note.id });
-
-      if (isSearching) {
-        await getAllNotes();
-      } else {
-        await reloadNotes();
-      }
-
-      const plainTitle = stripHtml(editingTitle) || 'Untitled';
-      setStatus(`Deleted note ${plainTitle} successfully`);
-    } catch (error) {
-      console.error('delete_note failed:', error);
-      setStatus(`Failed to delete note: ${error}`);
     }
   }
 
@@ -476,13 +462,13 @@
         <button onclick={OpenAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Open all</button>
         <button onclick={CloseAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Close all</button>
         <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
-        <button onclick={removeNote} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
+        <button onclick={() => startDeleteNote(note.id)} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
       {:else if !isCategory}
         {#if note.parent_id !== null}
           <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>{open ? 'Hide' : 'Show'}</button>
         {/if}
         <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
-        <button onclick={removeNote} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
+        <button onclick={() => startDeleteNote(note.id)} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
       {/if}
     </div>
     {#if isEditing}
@@ -542,7 +528,7 @@
                 {#key childNotes.map(n => n.id).join('-')}
                   {#each (previewChildNotes ?? childNotes) as child (child.id)}
                     <div animate:flip={{ duration: flipDurationMs }} data-is-dnd-shadow-item-hint={(child as any)[SHADOW_ITEM_MARKER_PROPERTY_NAME] ?? false}>
-                      <ComponentNote note={child} {reloadNotes} {setStatus} {notes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} />
+                      <ComponentNote note={child} {reloadNotes} {setStatus} {notes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} {startDeleteNote} deleteNoteId={deleteNoteId} />
                     </div>
                   {/each}
                 {/key}

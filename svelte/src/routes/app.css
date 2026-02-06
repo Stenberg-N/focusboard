@@ -846,7 +846,7 @@
   transform: scale(1.1) translateY(-1px);
 }
 
-#mainViewTimerFinishedContainer {
+#mainViewTimerFinishedContainer, #deleteNotificationContainer {
   position: fixed;
   display: flex;
   right: 5px;
@@ -861,18 +861,26 @@
   border-radius: 8px;
 }
 
-#mainViewTimerNotificationContainer {
+#mainViewTimerNotificationContainer, #deleteNotificationContent {
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
   padding: 10px;
 }
 
+#deleteNotificationButtons {
+  display: flex;
+  flex-direction: row;
+  max-height: 30px;
+  height: 100%;
+  gap: 10px;
+}
+
 #mainViewTimerMessageContainer {
   padding-right: 10px;
 }
 
-#mainViewTimerNotificationContainer p {
+#mainViewTimerNotificationContainer p, #deleteNotificationContent p {
   flex: 1 1 0;
   overflow-y: auto;
   text-align: left;
@@ -882,7 +890,7 @@
   margin: 0;
 }
 
-#mainViewTimerNotificationContainer button {
+#mainViewTimerNotificationContainer button, #deleteNotificationButtons button {
   background-color: #222;
   color: #f6f6f6;
   font-size: 16px;
@@ -899,15 +907,15 @@
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-#mainViewTimerNotificationContainer button:hover {
-  cursor: pointer;
-  background: #333;
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,1);
+#deleteNotificationButtons button {
+  max-width: 70px;
 }
 
-#mainViewTimerNotificationContainer button:hover {
+#mainViewTimerNotificationContainer button:hover, #deleteNotificationButtons button:hover {
+  cursor: pointer;
+  background: #333;
   transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
 }
 
 .mainViewTimerSpacer {

@@ -31,6 +31,7 @@
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
   let zoomedNoteId = $state<number | null>(null);
+  let deleteNoteId = $state<number | null>(null);
   let currentView = $state<'timerView' | 'calendarView' | 'notesView'>('notesView');
   let noteOpenStates = $state<Record<number, boolean>>({});
 
@@ -178,7 +179,8 @@
     showOverlay = true;
   });
 
-  function stripHtml(html: string): string {
+  function stripHtml(html: string | undefined): string {
+    if (!html) return '';
     const doc = new DOMParser().parseFromString(html, 'text/html');
     return doc.body.textContent?.trim().toLowerCase() || '';
   }
@@ -577,11 +579,53 @@
     if (statusBar) statusBar.textContent = 'Closed zoomed note';
   }
 
+  function startDeleteNote(id: number) {
+    deleteNoteId = id;
+  }
+
+  function cancelDeleteNote() {
+    deleteNoteId = null;
+  }
+
+  async function confirmDeleteNote() {
+    try {
+      const plainTitle = stripHtml(notes.find(n => n.id === deleteNoteId)?.title) || 'Untitled';
+      await invoke('delete_note', { id: deleteNoteId });
+      deleteNoteId = null;
+
+      if (isSearching) {
+        await getAllNotes();
+      } else {
+        await loadNotes(currentTabId);
+      }
+
+      statusBar.textContent = `Deleted note ${plainTitle} successfully`;
+    } catch (error) {
+      console.error('delete_note failed:', error);
+      statusBar.textContent = `Failed to delete note: ${error}`;
+    }
+  }
+
 </script>
 
 <main class="container">
   {#if showOverlay}
     <LoaderOverlay />
+  {/if}
+
+  {#if deleteNoteId}
+    <div id="deleteNotificationContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+      <div id="deleteNotificationContent">
+        <div id="deleteNotificationMessage">
+          <p>Are you sure you want to delete this note?</p>
+        </div>
+        <div class="mainViewTimerSpacer"></div>
+        <div id="deleteNotificationButtons">
+          <button onclick={confirmDeleteNote}>Confirm</button>
+          <button onclick={cancelDeleteNote}>Cancel</button>
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if zoomedNoteId}
@@ -591,7 +635,7 @@
         <button class="zoomedNoteCloseBtn" onclick={closeZoom}>Close without saving</button>
         <ComponentNote
           note={notes.find(n => n.id === zoomedNoteId)!}
-          {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
+          {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} startDeleteNote={startDeleteNote} deleteNoteId={deleteNoteId}
           setStatus={(msg) => (statusBar.textContent = msg)}
           reloadNotes={() => loadNotes(currentTabId)}
           isSearching={isSearching}
@@ -702,7 +746,7 @@
               {#each foundNotes as note (note.id)}
                 <div style="display: flex; flex: 1 1 0;">
                   <ComponentNote
-                    {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
+                    {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} startDeleteNote={startDeleteNote} deleteNoteId={deleteNoteId}
                     setStatus={(msg) => (statusBar.textContent = msg)}
                     reloadNotes={() => loadNotes(currentTabId)}
                     isSearching={isSearching}
@@ -716,7 +760,7 @@
                   {#each (previewNotes ?? topLevelNotes) as note (note.id)}
                     <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
                       <ComponentNote
-                        {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId}
+                        {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} startDeleteNote={startDeleteNote} deleteNoteId={deleteNoteId}
                         setStatus={(msg) => (statusBar.textContent = msg)}
                         reloadNotes={() => loadNotes(currentTabId)}
                         isSearching={isSearching}
