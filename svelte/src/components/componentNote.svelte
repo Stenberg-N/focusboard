@@ -20,7 +20,7 @@
     note,
     reloadNotes,
     setStatus,
-    notes,
+    currentTabNotes,
     noteOpenStates = $bindable<Record<number, boolean>>(),
     zoomedNote,
     zoomedNoteId = null,
@@ -32,7 +32,7 @@
     note: Note;
     reloadNotes: () => void;
     setStatus: (msg: string) => void;
-    notes: Note[];
+    currentTabNotes: Note[];
     noteOpenStates: Record<number, boolean>;
     zoomedNote: (id: number) => void;
     zoomedNoteId: number | null;
@@ -42,13 +42,13 @@
     deleteNoteId: number | null;
   } = $props();
 
-  let childNotes = $derived.by(() => {return notes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
+  let childNotes = $derived.by(() => {return currentTabNotes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
   let previewChildNotes = $state<Note[] | null>(null);
 
   let isZoomed = $derived(zoomedNoteId === note.id);
 
   $effect(() => {
-    childNotes = notes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
+    childNotes = currentTabNotes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
   });
 
   let open = $derived(noteOpenStates[note.id] ?? true);
@@ -468,7 +468,7 @@
           <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>{open ? 'Hide' : 'Show'}</button>
         {/if}
         <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
-        <button onclick={() => startDeleteNote(note.id)} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
+        <button onclick={() => startDeleteNote(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isZoomed}>Delete</button>
       {/if}
     </div>
     {#if isEditing}
@@ -528,7 +528,7 @@
                 {#key childNotes.map(n => n.id).join('-')}
                   {#each (previewChildNotes ?? childNotes) as child (child.id)}
                     <div animate:flip={{ duration: flipDurationMs }} data-is-dnd-shadow-item-hint={(child as any)[SHADOW_ITEM_MARKER_PROPERTY_NAME] ?? false}>
-                      <ComponentNote note={child} {reloadNotes} {setStatus} {notes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} {startDeleteNote} deleteNoteId={deleteNoteId} />
+                      <ComponentNote note={child} {reloadNotes} {setStatus} {currentTabNotes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} {startDeleteNote} deleteNoteId={deleteNoteId} />
                     </div>
                   {/each}
                 {/key}

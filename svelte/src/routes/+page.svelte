@@ -23,11 +23,11 @@
   import 'overlayscrollbars/overlayscrollbars.css';
 
   let notes = $state<Note[]>([]);
+  let currentTabNotes = $derived.by(() => { return notes.filter(n => n.tab_id === currentTabId).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
   let tabs = $state<Tab[]>([]);
   let uiVisibility = $state({ tabBar: true, runningTimer: true, });
-  let topLevelNotes = $derived.by(() => {return notes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
-  let searchedNotes = $state<Note[]>([]);
-  let foundNotes = $derived.by(() => {return searchedNotes.filter(n => stripHtml(n.title) === searchable?.trim().toLocaleLowerCase()) });
+  let topLevelNotes = $derived.by(() => {return currentTabNotes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
+  let foundNotes = $derived.by(() => {return notes.filter(n => stripHtml(n.title) === searchable?.trim().toLocaleLowerCase()) });
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
   let zoomedNoteId = $state<number | null>(null);
@@ -37,7 +37,7 @@
 
   setContext('noteOpenStates', () => noteOpenStates);
   setContext('uiVisibility', () => uiVisibility);
-  setContext('notes', () => notes);
+  setContext('currentTabNotes', () => currentTabNotes);
 
   let displayMinutes = $state(0);
   let displaySeconds = $state(0);
@@ -160,11 +160,15 @@
   });
 
   $effect(() => {
-    topLevelNotes = notes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
+    currentTabNotes = notes.filter(n => n.tab_id === currentTabId).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
+  })
+
+  $effect(() => {
+    topLevelNotes = currentTabNotes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
   });
 
   $effect(() => {
-    foundNotes = searchedNotes.filter(n => stripHtml(n.title) === searchable?.trim().toLowerCase())
+    foundNotes = notes.filter(n => stripHtml(n.title) === searchable?.trim().toLowerCase())
   });
 
   let showOverlay = $state<boolean>(false);
@@ -231,9 +235,9 @@
   async function loadNotes(tabId: number | null) {
     try {
       const data = await invoke<Note[]>('get_notes', { tabId: tabId });
-      notes = data;
+      currentTabNotes = data;
 
-      topLevelNotes = notes
+      topLevelNotes = currentTabNotes
         .filter(n => n.parent_id === null)
         .sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0));
 
@@ -528,7 +532,7 @@
   async function getAllNotes() {
     try {
       const data = await invoke<Note[]>('get_all_notes');
-      searchedNotes = data;
+      notes = data;
     } catch (error) {
       console.error("Failed to fetch all notes:", error);
       statusBar.textContent = `Failed to fetch all notes: ${error}`;
@@ -589,7 +593,7 @@
 
   async function confirmDeleteNote() {
     try {
-      const plainTitle = stripHtml(notes.find(n => n.id === deleteNoteId)?.title) || 'Untitled';
+      const plainTitle = stripHtml(currentTabNotes.find(n => n.id === deleteNoteId)?.title) || 'Untitled';
       await invoke('delete_note', { id: deleteNoteId });
       deleteNoteId = null;
 
@@ -634,8 +638,8 @@
         <p class="warnMessage">The close button does not save any changes made to the note. Hitting Escape will close the note without saving. Please remember to save the changes in the note edit mode before exiting the zoom.</p>
         <button class="zoomedNoteCloseBtn" onclick={closeZoom}>Close without saving</button>
         <ComponentNote
-          note={notes.find(n => n.id === zoomedNoteId)!}
-          {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} startDeleteNote={startDeleteNote} deleteNoteId={deleteNoteId}
+          note={currentTabNotes.find(n => n.id === zoomedNoteId)!}
+          {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} startDeleteNote={startDeleteNote} deleteNoteId={deleteNoteId}
           setStatus={(msg) => (statusBar.textContent = msg)}
           reloadNotes={() => loadNotes(currentTabId)}
           isSearching={isSearching}
@@ -746,7 +750,7 @@
               {#each foundNotes as note (note.id)}
                 <div style="display: flex; flex: 1 1 0;">
                   <ComponentNote
-                    {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} startDeleteNote={startDeleteNote} deleteNoteId={deleteNoteId}
+                    {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} startDeleteNote={startDeleteNote} deleteNoteId={deleteNoteId}
                     setStatus={(msg) => (statusBar.textContent = msg)}
                     reloadNotes={() => loadNotes(currentTabId)}
                     isSearching={isSearching}
@@ -760,7 +764,7 @@
                   {#each (previewNotes ?? topLevelNotes) as note (note.id)}
                     <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
                       <ComponentNote
-                        {note} {notes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} startDeleteNote={startDeleteNote} deleteNoteId={deleteNoteId}
+                        {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} startDeleteNote={startDeleteNote} deleteNoteId={deleteNoteId}
                         setStatus={(msg) => (statusBar.textContent = msg)}
                         reloadNotes={() => loadNotes(currentTabId)}
                         isSearching={isSearching}
