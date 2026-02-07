@@ -25,9 +25,18 @@ export type Timer = {
   message: string | null;
 }
 
-export type calendarDay = {
+export type CalendarDay = {
   date: Date;
+  isodate: string;
   name: string;
   enabled: boolean;
   monthabbrev: string;
+}
+
+export type CalendarEvent = {
+  id: number;
+  event_date: string;
+  event_name: string;
+  event_start: number;
+  event_end: number;
 }

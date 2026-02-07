@@ -732,7 +732,7 @@
       {#if currentView === 'timerView'}
         <TimerView setStatus={(msg) => (statusBar.textContent = msg)} />
       {:else if currentView === 'calendarView'}
-        <CalendarView />
+        <CalendarView setStatus={(msg) => (statusBar.textContent = msg)}/>
       {:else}
         <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
           <div id="innerNoteContainer" use:dragHandleZone={{

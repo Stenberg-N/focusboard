@@ -62,6 +62,18 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
     .await?;
 
     sqlx::query(
+        "CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY,
+            event_date TEXT NOT NULL,
+            event_name TEXT,
+            event_start INTEGER,
+            event_end INTEGER
+        )"
+    )
+    .execute(&mut *conn)
+    .await?;
+
+    sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_notes_tab_parent_order
         ON notes(tab_id, parent_id, order_id)"
     ).execute(&mut *conn).await?;

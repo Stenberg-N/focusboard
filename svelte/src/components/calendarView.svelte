@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { calendarDay } from "../types/types";
+  import { invoke } from '@tauri-apps/api/core';
+  import type { CalendarDay, CalendarEvent } from "../types/types";
 
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   let monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -10,13 +11,54 @@
   let month = $state<number>(now.getMonth());
   let currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+  let selectedDate = $state<string | null>(null);
+  let eventNameInput = $state<HTMLInputElement>();
+  let eventStart = $state<HTMLInputElement>();
+  let eventEnd = $state<HTMLInputElement>();
+
+  let events = $state<CalendarEvent[]>([])
+
   let headers = $state<Array<string>>([]);
-  let days = $state<calendarDay[]>([]);
+  let days = $state<CalendarDay[]>([]);
+
+  let {
+    setStatus,
+  }: {
+    setStatus: (msg: string) => void;
+  } = $props();
 
   onMount(() => {
+    getEvents();
     headers = dayNames;
     initMonth();
+
+    setStatus("Calendar loaded successfully");
   });
+
+  async function saveEvent() {
+    try {
+      await invoke('insert_event', { eventDate: selectedDate, eventName: eventNameInput?.value, eventStart: Number(eventStart?.value), eventEnd: Number(eventEnd?.value) });
+      await getEvents();
+      selectedDate = null;
+
+      setStatus("Added event successfully");
+
+    } catch (error) {
+      console.log("Error inserting event:", error);
+      setStatus(`Failed to add event: ${error}`);
+    }
+  }
+
+  async function getEvents() {
+    try {
+      const data = await invoke<CalendarEvent[]>('get_events');
+      events = data;
+
+    } catch (error) {
+      console.log("Failed to retrieve events:", error);
+      setStatus(`Failed to retrieve events: ${error}`);
+    }
+  }
 
   function initMonth() {
     days = [];
@@ -32,21 +74,22 @@
     for (let i = daysInLastMonth - offset; i < daysInLastMonth; i++) {
       let day = new Date(previousMonth == 11 ? year - 1 : year, previousMonth, i+1);
 
-      days.push({ monthabbrev:'', name:'' + (i+1), enabled:false, date:day });
+      days.push({ monthabbrev:'', name:'' + (i+1), enabled:false, date:day, isodate:'' });
     }
 
     for (let i = 0; i < daysInCurrentMonth; i++) {
       let day = new Date(year, month, i+1);
+      let isoDate = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
 
-      if (i==0) days.push({ monthabbrev:monthAbbreviation, name:'' + (i+1), enabled:true, date:day });
-      else days.push({ monthabbrev:'', name:'' + (i+1), enabled:true, date:day });
+      if (i==0) days.push({ monthabbrev:monthAbbreviation, name:'' + (i+1), enabled:true, date:day, isodate:isoDate });
+      else days.push({ monthabbrev:'', name:'' + (i+1), enabled:true, date:day, isodate:isoDate });
     }
 
     for (let i = 0; days.length%7; i++) {
       let day = new Date((month == 11 ? year + 1 : year), (month + 1)%12, i+1);
 
-      if (i==0) days.push({ monthabbrev:nextMonthAbbreviation, name:'' + (i+1), enabled:false, date:day});
-      else days.push({ monthabbrev:'', name:'' + (i+1), enabled:false, date:day });
+      if (i==0) days.push({ monthabbrev:nextMonthAbbreviation, name:'' + (i+1), enabled:false, date:day, isodate:'' });
+      else days.push({ monthabbrev:'', name:'' + (i+1), enabled:false, date:day, isodate:'' });
     }
   }
 
@@ -69,6 +112,24 @@
   }
 </script>
 
+{#if selectedDate}
+  <div id="addEventOverlay">
+    <div id="addEventContainer">
+      <h3>Event info</h3>
+      <div id="addEventInfo">
+        <p>Event name</p>
+        <input bind:this={eventNameInput} />
+        <p>Event start</p>
+        <input bind:this={eventStart} />
+        <p>Event end</p>
+        <input bind:this={eventEnd} />
+      </div>
+      <button onclick={saveEvent}>Save</button>
+      <button onclick={() => { selectedDate = null }}>Close</button>
+    </div>
+  </div>
+{/if}
+
 <div id="calendarView">
   <div id="calendarControls">
     <button onclick={() => { prev(); initMonth(); }}>
@@ -87,14 +148,23 @@
     </div>
     <div id="calendarDays">
       {#each days as day (day.date)}
-        <div class="dayContainer" class:nonCurrent={day.enabled == false}>
+        <button class="dayContainer" class:nonCurrent={day.enabled == false} onclick={() => { selectedDate = day.isodate }}>
           <div class="dayInfo">
             <p class="monthAbbreviation">{day.monthabbrev}</p>
             <div class="dayNameContainer" class:currentDay={+day.date === +currentDate}>
               <p style="margin: 0;">{day.name}</p>
             </div>
           </div>
-        </div>
+          {#if events}
+            <div class="dayEvents">
+              {#each events.filter(e => e.event_date === day.isodate) as event (event.id)}
+                <div class="eventContainer">
+                  <p>{event.event_name}</p>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </button>
       {/each}
     </div>
   </div>
@@ -205,6 +275,7 @@
     min-width: calc(100% / 7 - 10px);
     min-height: calc(100% / 6 - 10px);
     background: #222;
+    border: 0;
     border-radius: 8px;
     padding: 10px;
     text-align: center;
@@ -248,6 +319,28 @@
     background-attachment: fixed;
   }
 
+  .dayContainer .dayEvents {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    gap: 5px;
+  }
+
+  .dayContainer .dayEvents .eventContainer {
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    width: 80px;
+    height: 20px;
+    background: red;
+    padding: 5px;
+  }
+
+  .dayContainer .dayEvents .eventContainer p {
+    margin: 0;
+    color: #f6f6f6;
+  }
+
   .dayNameContainer {
     width: 30px;
     height: 30px;
@@ -258,5 +351,59 @@
 
   .dayNameContainer.currentDay {
     background: #723fffd0;
+  }
+
+  #addEventOverlay {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 10000;
+    top: 0;
+    left: 0;
+    bottom: 20px;
+    width: 100vw;
+    height: 100vh - 20px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(15px);
+  }
+
+  #addEventContainer {
+    position: relative;
+    inset: 0;
+    width: 50%;
+    height: 80%;
+    margin: auto;
+    overflow: auto;
+    background: #0f0f0f;
+    border-radius: 8px;
+  }
+
+  #addEventInfo {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    height: 275px;
+    margin: 20px;
+    background: #222;
+    border-radius: 8px;
+  }
+
+  #addEventInfo p {
+    margin: 0;
+    padding: 20px 20px 5px;
+    text-align: left;
+  }
+
+  #addEventInfo input {
+    margin: 0 20px;
+    max-height: 30px;
+    height: 100%;
+    max-width: 250px;
+    width: 100%;
+    background: #151515;
+    border-radius: 8px;
+    padding: 2px 10px;
+    color: #f6f6f6;
   }
 </style>

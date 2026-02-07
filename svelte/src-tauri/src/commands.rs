@@ -40,6 +40,15 @@ pub struct Timer {
     pub message: String,
 }
 
+#[derive(FromRow, Serialize, Deserialize, Debug, Clone)]
+pub struct CalendarEvent {
+    pub id: i64,
+    pub event_date: String,
+    pub event_name: String,
+    pub event_start: Option<i32>,
+    pub event_end: Option<i32>,
+}
+
 #[tauri::command]
 pub async fn get_notes(
     pool: State<'_, SqlitePool>,
@@ -485,4 +494,52 @@ pub async fn get_timer(
         Some(t) => Ok(t),
         None => Err("No timer found".to_string()),
     }
+}
+
+#[tauri::command]
+pub async fn insert_event(
+    pool: State<'_, SqlitePool>,
+    event_date: String,
+    event_name: String,
+    event_start: Option<i32>,
+    event_end: Option<i32>
+) -> Result<CalendarEvent, String> {
+    let event = query_as::<_, CalendarEvent>(
+        r#"
+        INSERT INTO events (event_date, event_name, event_start, event_end)
+        VALUES (?, ?, ?, ?)
+        RETURNING id, event_date, event_name, event_start, event_end
+        "#
+    )
+    .bind(event_date)
+    .bind(event_name)
+    .bind(event_start)
+    .bind(event_end)
+    .fetch_one(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Failed to insert event to calendar: {:#}", e);
+        e.to_string()
+    })?;
+
+    Ok(event)
+}
+
+#[tauri::command]
+pub async fn get_events(
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<CalendarEvent>, String> {
+    let events = query_as::<_, CalendarEvent>(
+        r#"
+        SELECT * FROM events
+        "#
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| {
+        error!("Failed to retrieve events: {:#}", e);
+        e.to_string()
+    })?;
+
+    Ok(events)
 }
