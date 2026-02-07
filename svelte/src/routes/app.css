@@ -816,7 +816,7 @@
   transform: translateY(-3px);
 }
 
-#noteIcon, #clockIcon {
+#noteIcon, #clockIcon, #calendarIcon {
   display: flex;
   justify-self: center;
   max-width: 40px;
@@ -826,10 +826,10 @@
 }
 
 #noteIcon {
-  filter: saturate(0) contrast(1.2);
+  filter: saturate(0);
 }
 
-#clockIcon {
+#clockIcon, #calendarIcon {
   filter: brightness(0) invert(0.7);
 }
 

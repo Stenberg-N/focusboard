@@ -724,7 +724,7 @@
         <img id="clockIcon" src="clock.svg" alt="clockIcon">
       </button>
       <button id="calendarViewBtn" class:selected={currentView === 'calendarView'} onclick={() => currentView = 'calendarView'}>
-        calendar
+        <img id="calendarIcon" src="calendar.svg" alt="calendarIcon">
       </button>
     </div>
 

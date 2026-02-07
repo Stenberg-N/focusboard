@@ -24,3 +24,10 @@ export type Timer = {
   duration: number;
   message: string | null;
 }
+
+export type calendarDay = {
+  date: Date;
+  name: string;
+  enabled: boolean;
+  monthabbrev: string;
+}
