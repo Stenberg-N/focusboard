@@ -40,4 +40,5 @@ export type CalendarEvent = {
   event_name: string;
   event_start: number;
   event_end: number;
+  color: string;
 }

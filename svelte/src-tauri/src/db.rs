@@ -68,7 +68,8 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
             year_month TEXT,
             event_name TEXT,
             event_start INTEGER,
-            event_end INTEGER
+            event_end INTEGER,
+            color TEXT
         )"
     )
     .execute(&mut *conn)

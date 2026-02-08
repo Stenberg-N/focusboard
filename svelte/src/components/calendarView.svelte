@@ -9,6 +9,7 @@
 
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   let monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#E7E9ED', '#C9CBCF', '#AD60E0', '#76D7C4', '#F1948A', '#F7DC6F'];
 
   let now = new Date();
   let year = $state<number>(now.getFullYear());
@@ -18,8 +19,10 @@
   let selectedDate = $state<string | null>(null);
   let yearMonth = $derived.by(() => `${String(year)}-${String(Number(month+1))}`);
   let eventNameInput = $state<HTMLInputElement>();
-  let eventStart = $state<HTMLInputElement>();
-  let eventEnd = $state<HTMLInputElement>();
+  let eventStartHours = $state<number>(0);
+  let eventStartMinutes = $state<number>(0);
+  let eventEndHours = $state<number>(0);
+  let eventEndMinutes = $state<number>(0);
 
   let events = $state<CalendarEvent[]>([]);
 
@@ -42,9 +45,18 @@
 
   async function saveEvent() {
     try {
-      await invoke('insert_event', { eventDate: selectedDate, yearMonth: yearMonth, eventName: eventNameInput?.value, eventStart: Number(eventStart?.value), eventEnd: Number(eventEnd?.value) });
+      let randomColor = colors[Math.floor(Math.random() * colors.length)];
+      let timeStart = (eventStartHours * 3600) + (eventStartMinutes * 60);
+      let timeEnd = (eventEndHours * 3600) + (eventEndMinutes * 60);
+
+      await invoke('insert_event', { eventDate: selectedDate, yearMonth: yearMonth, eventName: eventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd, color: randomColor });
       await getEvents();
+
       selectedDate = null;
+      eventStartHours = 0;
+      eventStartMinutes = 0;
+      eventEndHours = 0;
+      eventEndMinutes = 0;
 
       setStatus("Added event successfully");
 
@@ -119,6 +131,12 @@
 
     await getEvents();
   }
+
+  function secondsToHoursMinutes(totalSeconds: number) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    return `${hours}:${String(minutes).padStart(2, '0')}`
+  }
 </script>
 
 {#if selectedDate}
@@ -129,9 +147,15 @@
         <p>Event name</p>
         <input bind:this={eventNameInput} />
         <p>Event start</p>
-        <input bind:this={eventStart} />
+        <div class="addEventInputContainer">
+          <input bind:value={eventStartHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventStartHours = 23; if (value < 0) eventStartHours = 0; }} />
+          <input bind:value={eventStartMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) eventStartMinutes = 59; if (value < 0) eventStartMinutes = 0; }} />
+        </div>
         <p>Event end</p>
-        <input bind:this={eventEnd} />
+        <div class="addEventInputContainer">
+          <input type="number" bind:value={eventEndHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventEndHours = 23; if (value < 0) eventEndHours = 0; }} />
+          <input type="number" bind:value={eventEndMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) eventEndMinutes = 59; if (value < 0) eventEndMinutes = 0; }} />
+        </div>
       </div>
       <button onclick={saveEvent}>Save</button>
       <button onclick={() => { selectedDate = null }}>Close</button>
@@ -165,11 +189,16 @@
                 <p style="margin: 0;">{day.name}</p>
               </div>
             </div>
+            <div class="spacer"></div>
             {#if events}
               <div class="dayEvents">
                 {#each events.filter(e => e.event_date === day.isodate).slice(0, 2) as event (event.id)}
-                  <div class="eventContainer">
-                    <p>{event.event_name}</p>
+                  <div class="eventContainer" style="background: {event.color};">
+                    <div class="eventName">
+                      <p class:sliding={event.event_name.length > 15}>{event.event_name}</p>
+                    </div>
+                    <div class="spacer"></div>
+                    <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
                   </div>
                 {/each}
               </div>
@@ -182,6 +211,11 @@
 </div>
 
 <style>
+  .spacer {
+    display: flex;
+    flex: 1;
+  }
+
   #calendarView {
     display: flex;
     flex-direction: column;
@@ -332,7 +366,7 @@
 
   .dayContainer .dayEvents {
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
     flex: 1 1 0;
     gap: 5px;
   }
@@ -341,15 +375,30 @@
     display: flex;
     flex: 1 1 0;
     align-items: center;
-    width: 80px;
-    height: 20px;
-    background: red;
+    width: 100%;
+    max-height: 29px;
+    height: 29px;
+    border-radius: 6px;
     padding: 5px;
   }
 
   .dayContainer .dayEvents .eventContainer p {
     margin: 0;
     color: #f6f6f6;
+  }
+
+  .dayContainer .dayEvents .eventContainer .eventName {
+    display: flex;
+    max-width: 50%;
+    overflow: hidden;
+  }
+
+  .dayContainer .dayEvents .eventContainer .eventName p {
+    max-width: 100%;
+  }
+
+  .dayContainer .dayEvents .eventContainer .eventName p.sliding:hover {
+    animation: slideText 3.5s linear infinite;
   }
 
   .dayNameContainer {
@@ -394,7 +443,7 @@
     display: flex;
     flex-direction: column;
     flex: 1 1 0;
-    height: 275px;
+    height: 400px;
     margin: 20px;
     background: #222;
     border-radius: 8px;
@@ -416,6 +465,49 @@
     border-radius: 8px;
     padding: 2px 10px;
     color: #f6f6f6;
+  }
+
+  .addEventInputContainer {
+    display: flex;
+    flex-direction: row;
+    flex: 1 1 0;
+    justify-content: center;
+    align-items: center;
+    margin: 0 20px;
+    max-height: 80px;
+    height: 100%;
+    max-width: 130px;
+    width: 100%;
+    gap: 10px;
+    border-radius: 8px;
+    background: #151515;
+  }
+
+  #addEventInfo .addEventInputContainer input {
+    margin: 0;
+    max-height: 60px;
+    height: 100%;
+    max-width: 50px;
+    width: 100%;
+    background: #222;
+    border-radius: 6px;
+    padding: 2px 10px;
+    color: #f6f6f6;
+    text-align: center;
+  }
+
+  #addEventInfo .addEventInputContainer input[type="number"]::-webkit-outer-spin-button, #addEventInfo .addEventInputContainer input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  @keyframes slideText {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-150%);
+    }
   }
 
   :global {

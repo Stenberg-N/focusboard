@@ -48,6 +48,7 @@ pub struct CalendarEvent {
     pub event_name: String,
     pub event_start: Option<i32>,
     pub event_end: Option<i32>,
+    pub color: String,
 }
 
 #[tauri::command]
@@ -504,13 +505,14 @@ pub async fn insert_event(
     year_month: String,
     event_name: String,
     event_start: Option<i32>,
-    event_end: Option<i32>
+    event_end: Option<i32>,
+    color: String,
 ) -> Result<CalendarEvent, String> {
     let event = query_as::<_, CalendarEvent>(
         r#"
-        INSERT INTO events (event_date, year_month, event_name, event_start, event_end)
-        VALUES (?, ?, ?, ?, ?)
-        RETURNING id, event_date, year_month, event_name, event_start, event_end
+        INSERT INTO events (event_date, year_month, event_name, event_start, event_end, color)
+        VALUES (?, ?, ?, ?, ?, ?)
+        RETURNING id, event_date, year_month, event_name, event_start, event_end, color
         "#
     )
     .bind(event_date)
@@ -518,6 +520,7 @@ pub async fn insert_event(
     .bind(event_name)
     .bind(event_start)
     .bind(event_end)
+    .bind(color)
     .fetch_one(&*pool)
     .await
     .map_err(|e| {
