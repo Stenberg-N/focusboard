@@ -3,7 +3,6 @@
   import { onMount } from 'svelte';
 
   import type { Timer } from "../types/types";
-  import 'overlayscrollbars/overlayscrollbars.css';
 
   let {
     setStatus,

@@ -1,7 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from '@tauri-apps/api/core';
+  import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
+
   import type { CalendarDay, CalendarEvent } from "../types/types";
+
+  import 'overlayscrollbars/overlayscrollbars.css';
 
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   let monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -145,34 +149,36 @@
       <img id="nextArrowIcon" src="down-arrow.svg" alt="nextArrow">
     </button>
   </div>
-  <div id="calendar">
-    <div id="weekDays">
-      {#each headers as header}
-        <div class="header">{header}</div>
-      {/each}
-    </div>
-    <div id="calendarDays">
-      {#each days as day (day.date)}
-        <button class="dayContainer" class:nonCurrent={day.enabled == false} onclick={() => { if (!day.enabled) return; selectedDate = day.isodate; }}>
-          <div class="dayInfo">
-            <p class="monthAbbreviation">{day.monthabbrev}</p>
-            <div class="dayNameContainer" class:currentDay={+day.date === +currentDate}>
-              <p style="margin: 0;">{day.name}</p>
+  <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
+    <div id="calendar">
+      <div id="weekDays">
+        {#each headers as header}
+          <div class="header">{header}</div>
+        {/each}
+      </div>
+      <div id="calendarDays">
+        {#each days as day (day.date)}
+          <button class="dayContainer" class:nonCurrent={day.enabled == false} onclick={() => { if (!day.enabled) return; selectedDate = day.isodate; }}>
+            <div class="dayInfo">
+              <p class="monthAbbreviation">{day.monthabbrev}</p>
+              <div class="dayNameContainer" class:currentDay={+day.date === +currentDate}>
+                <p style="margin: 0;">{day.name}</p>
+              </div>
             </div>
-          </div>
-          {#if events}
-            <div class="dayEvents">
-              {#each events.filter(e => e.event_date === day.isodate) as event (event.id)}
-                <div class="eventContainer">
-                  <p>{event.event_name}</p>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </button>
-      {/each}
+            {#if events}
+              <div class="dayEvents">
+                {#each events.filter(e => e.event_date === day.isodate).slice(0, 2) as event (event.id)}
+                  <div class="eventContainer">
+                    <p>{event.event_name}</p>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </button>
+        {/each}
+      </div>
     </div>
-  </div>
+  </OverlayScrollbarsComponent>
 </div>
 
 <style>
@@ -186,13 +192,13 @@
     padding: 10px;
     overflow-y: auto;
     overflow-x: hidden;
-    justify-content: center;
   }
 
   #calendar {
     display: flex;
     flex-direction: column;
     flex: 1 1 0;
+    height: calc(100vh - 156px);
     background: transparent;
     padding: 5px 20px 20px;
   }
@@ -410,5 +416,14 @@
     border-radius: 8px;
     padding: 2px 10px;
     color: #f6f6f6;
+  }
+
+  :global {
+    .os-theme-dark {
+      --os-handle-bg: #888;
+      --os-handle-bg-hover: #ccc;
+      --os-handle-bg-active: #ccc;
+      --os-track-bg: #444;
+    }
   }
 </style>
