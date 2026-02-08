@@ -36,6 +36,7 @@ export type CalendarDay = {
 export type CalendarEvent = {
   id: number;
   event_date: string;
+  year_month: string;
   event_name: string;
   event_start: number;
   event_end: number;

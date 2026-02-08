@@ -65,6 +65,7 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
         "CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY,
             event_date TEXT NOT NULL,
+            year_month TEXT,
             event_name TEXT,
             event_start INTEGER,
             event_end INTEGER

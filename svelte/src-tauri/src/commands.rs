@@ -44,6 +44,7 @@ pub struct Timer {
 pub struct CalendarEvent {
     pub id: i64,
     pub event_date: String,
+    pub year_month: String,
     pub event_name: String,
     pub event_start: Option<i32>,
     pub event_end: Option<i32>,
@@ -500,18 +501,20 @@ pub async fn get_timer(
 pub async fn insert_event(
     pool: State<'_, SqlitePool>,
     event_date: String,
+    year_month: String,
     event_name: String,
     event_start: Option<i32>,
     event_end: Option<i32>
 ) -> Result<CalendarEvent, String> {
     let event = query_as::<_, CalendarEvent>(
         r#"
-        INSERT INTO events (event_date, event_name, event_start, event_end)
-        VALUES (?, ?, ?, ?)
-        RETURNING id, event_date, event_name, event_start, event_end
+        INSERT INTO events (event_date, year_month, event_name, event_start, event_end)
+        VALUES (?, ?, ?, ?, ?)
+        RETURNING id, event_date, year_month, event_name, event_start, event_end
         "#
     )
     .bind(event_date)
+    .bind(year_month)
     .bind(event_name)
     .bind(event_start)
     .bind(event_end)
@@ -528,12 +531,14 @@ pub async fn insert_event(
 #[tauri::command]
 pub async fn get_events(
     pool: State<'_, SqlitePool>,
+    year_month: String,
 ) -> Result<Vec<CalendarEvent>, String> {
     let events = query_as::<_, CalendarEvent>(
         r#"
-        SELECT * FROM events
+        SELECT * FROM events WHERE year_month = ?
         "#
     )
+    .bind(year_month)
     .fetch_all(&*pool)
     .await
     .map_err(|e| {

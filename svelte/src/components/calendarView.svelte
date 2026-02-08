@@ -12,11 +12,12 @@
   let currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   let selectedDate = $state<string | null>(null);
+  let yearMonth = $derived.by(() => `${String(year)}-${String(Number(month+1))}`);
   let eventNameInput = $state<HTMLInputElement>();
   let eventStart = $state<HTMLInputElement>();
   let eventEnd = $state<HTMLInputElement>();
 
-  let events = $state<CalendarEvent[]>([])
+  let events = $state<CalendarEvent[]>([]);
 
   let headers = $state<Array<string>>([]);
   let days = $state<CalendarDay[]>([]);
@@ -37,7 +38,7 @@
 
   async function saveEvent() {
     try {
-      await invoke('insert_event', { eventDate: selectedDate, eventName: eventNameInput?.value, eventStart: Number(eventStart?.value), eventEnd: Number(eventEnd?.value) });
+      await invoke('insert_event', { eventDate: selectedDate, yearMonth: yearMonth, eventName: eventNameInput?.value, eventStart: Number(eventStart?.value), eventEnd: Number(eventEnd?.value) });
       await getEvents();
       selectedDate = null;
 
@@ -51,7 +52,7 @@
 
   async function getEvents() {
     try {
-      const data = await invoke<CalendarEvent[]>('get_events');
+      const data = await invoke<CalendarEvent[]>('get_events', { yearMonth: yearMonth });
       events = data;
 
     } catch (error) {
@@ -93,22 +94,26 @@
     }
   }
 
-  function next() {
+  async function next() {
     month++;
 
     if (month == 12) {
       year++;
       month = 0;
     }
+
+    await getEvents();
   }
 
-  function prev() {
+  async function prev() {
     if (month == 0) {
       year--;
       month = 11;
     } else {
       month--;
     }
+
+    await getEvents();
   }
 </script>
 
@@ -148,7 +153,7 @@
     </div>
     <div id="calendarDays">
       {#each days as day (day.date)}
-        <button class="dayContainer" class:nonCurrent={day.enabled == false} onclick={() => { selectedDate = day.isodate }}>
+        <button class="dayContainer" class:nonCurrent={day.enabled == false} onclick={() => { if (!day.enabled) return; selectedDate = day.isodate; }}>
           <div class="dayInfo">
             <p class="monthAbbreviation">{day.monthabbrev}</p>
             <div class="dayNameContainer" class:currentDay={+day.date === +currentDate}>
