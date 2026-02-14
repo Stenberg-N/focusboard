@@ -125,6 +125,7 @@
     }
 
     await getEvents();
+    initMonth();
   }
 
   async function prev() {
@@ -136,6 +137,7 @@
     }
 
     await getEvents();
+    initMonth();
   }
 
   function secondsToHoursMinutes(totalSeconds: number) {
@@ -213,11 +215,11 @@
 
 <div id="calendarView">
   <div id="calendarControls">
-    <button onclick={() => { prev(); initMonth(); }}>
+    <button onclick={() => { prev() }}>
       <img id="prevArrowIcon" src="down-arrow.svg" alt="prevArrow">
     </button>
     <p id="date">{monthNames[month]} {year}</p>
-    <button onclick={() => { next(); initMonth(); }}>
+    <button onclick={() => { next() }}>
       <img id="nextArrowIcon" src="down-arrow.svg" alt="nextArrow">
     </button>
   </div>
@@ -239,19 +241,17 @@
             </div>
             {#if events.length > 0}
               <div class="dayEvents">
-                <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-                  <div style="display: flex; flex-direction: column; gap: 5px; margin-right: 12px;">
-                    {#each events.filter(e => e.event_date === day.isodate) as event (event.id)}
-                      <div class="eventContainer" style="background: {event.color};">
-                        <div class="eventName">
-                          <p class:sliding={event.event_name.length > 15}>{event.event_name}</p>
-                        </div>
-                        <div class="spacer"></div>
-                        <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
+                <div style="display: flex; flex-direction: column; gap: 5px; margin-right: 12px;">
+                  {#each events.filter(e => e.event_date === day.isodate) as event (event.id)}
+                    <div class="eventContainer" style="background: {event.color};">
+                      <div class="eventName">
+                        <p class:sliding={event.event_name.length > 15}>{event.event_name}</p>
                       </div>
-                    {/each}
-                  </div>
-                </OverlayScrollbarsComponent>
+                      <div class="spacer"></div>
+                      <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
+                    </div>
+                  {/each}
+                </div>
               </div>
             {/if}
           </button>
@@ -422,7 +422,24 @@
     flex: 1 1 0;
     min-height: 63px;
     gap: 5px;
-    overflow: hidden;
+    overflow: auto;
+  }
+
+  .dayContainer .dayEvents::-webkit-scrollbar {
+    width: 6px;
+    background: #444;
+    border-radius: 10px;
+  }
+
+  .dayContainer .dayEvents::-webkit-scrollbar-thumb {
+    max-height: 30px;
+    height: 100%;
+    border-radius: 10px;
+    background: #888;
+  }
+
+  .dayContainer .dayEvents::-webkit-scrollbar-thumb:hover {
+    background: #ccc;
   }
 
   .dayContainer .dayEvents .eventContainer {
