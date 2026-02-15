@@ -163,6 +163,8 @@ async fn main() {
             commands::get_all_notes,
             commands::insert_event,
             commands::get_events,
+            commands::update_event,
+            commands::delete_event,
         ])
         .run(context)
         .expect("Error while running tauri application");

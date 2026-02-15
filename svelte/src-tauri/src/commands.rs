@@ -551,3 +551,47 @@ pub async fn get_events(
 
     Ok(events)
 }
+
+#[tauri::command]
+pub async fn update_event(
+    pool: State<'_, SqlitePool>,
+    id: i64,
+    event_name: String,
+    event_start: Option<i32>,
+    event_end: Option<i32>,
+) -> Result<(), String> {
+    sqlx::query("UPDATE events SET event_name = ?, event_start = ?, event_end = ? WHERE id = ?")
+        .bind(event_name)
+        .bind(event_start)
+        .bind(event_end)
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| {
+            error!("Failed to update event: {:#}", e);
+            e.to_string()
+        })?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_event(
+    pool: State<'_, SqlitePool>,
+    id: i64,
+) -> Result<(), String> {
+    let result = sqlx::query("DELETE FROM events WHERE id = ?")
+        .bind(id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| {
+            error!("Failed to delete event {}: {:#}", id, e);
+            e.to_string()
+        })?;
+
+    if result.rows_affected() == 0 {
+        return Err(format!("Event with {id} not found"));
+    }
+
+    Ok(())
+}

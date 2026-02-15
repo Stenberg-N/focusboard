@@ -4,8 +4,9 @@
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import debounce from 'lodash/debounce';
 
-  import type { CalendarDay, CalendarEvent } from "../types/types";
+  import CalendarEventOverlay from "./CalendarEventOverlay.svelte";
 
+  import type { CalendarDay, CalendarEvent } from "../types/types";
   import 'overlayscrollbars/overlayscrollbars.css';
 
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -20,11 +21,6 @@
   let selectedDate = $state<string | null>(null);
   let selectedDateClean = $state<string | null>(null);
   let yearMonth = $derived.by(() => `${String(year)}-${String(Number(month+1))}`);
-  let eventNameInput = $state<HTMLInputElement>();
-  let eventStartHours = $state<number>(0);
-  let eventStartMinutes = $state<number>(0);
-  let eventEndHours = $state<number>(0);
-  let eventEndMinutes = $state<number>(0);
 
   let events = $state<CalendarEvent[]>([]);
 
@@ -45,31 +41,8 @@
     setStatus("Calendar loaded successfully");
   });
 
-  async function saveEvent() {
-    try {
-      if (eventNameInput?.value == '') {
-        setStatus("Event name missing! Please add a name for the event");
-        return;
-      }
-
-      let randomColor = colors[Math.floor(Math.random() * colors.length)];
-      let timeStart = (eventStartHours * 3600) + (eventStartMinutes * 60);
-      let timeEnd = (eventEndHours * 3600) + (eventEndMinutes * 60);
-
-      await invoke('insert_event', { eventDate: selectedDate, yearMonth: yearMonth, eventName: eventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd, color: randomColor });
-      await getEvents();
-
-      eventStartHours = 0;
-      eventStartMinutes = 0;
-      eventEndHours = 0;
-      eventEndMinutes = 0;
-
-      setStatus("Added event successfully");
-
-    } catch (error) {
-      console.log("Error inserting event:", error);
-      setStatus(`Failed to add event: ${error}`);
-    }
+  function setSelectedDate(date: string | null) {
+    selectedDate = date;
   }
 
   const getEvents = debounce(async () =>{
@@ -148,69 +121,7 @@
 </script>
 
 {#if selectedDate}
-  <div id="addEventOverlay">
-    <div id="menuBar">
-      <h2>Events on {selectedDateClean}</h2>
-      <button onclick={() => { selectedDate = null }}>Close</button>
-    </div>
-    <div id="mainContent">
-      <div id="addEventContainer">
-        <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-          <h3>Event info</h3>
-          <div id="addEventInfo">
-            <div id="addEventNameContainer">
-              <p>Event name</p>
-              <input bind:this={eventNameInput} />
-            </div>
-            <div id="eventStartEndContainer">
-              <div id="eventStartTimesContainer">
-                <p>Event start</p>
-                <div class="addEventInputContainer">
-                  <input bind:value={eventStartHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventStartHours = 23; if (value < 0) eventStartHours = 0; }} />
-                  <input bind:value={eventStartMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) eventStartMinutes = 59; if (value < 0) eventStartMinutes = 0; }} />
-                </div>
-              </div>
-              <div id="eventEndTimesContainer">
-                <p>Event end</p>
-                <div class="addEventInputContainer">
-                  <input type="number" bind:value={eventEndHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventEndHours = 23; if (value < 0) eventEndHours = 0; }} />
-                  <input type="number" bind:value={eventEndMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) eventEndMinutes = 59; if (value < 0) eventEndMinutes = 0; }} />
-                </div>
-              </div>
-            </div>
-          </div>
-          <div id="addEventButtons">
-            <button onclick={saveEvent}>Save</button>
-            <button onclick={() => { selectedDate = null }}>Cancel</button>
-          </div>
-        </OverlayScrollbarsComponent>
-      </div>
-      <div id="eventsList">
-        <div id="listedEventsContainer">
-          <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-            <div style="display: flex; flex-direction: column; gap: 20px; margin-right: 20px;">
-              {#each events.filter(e => e.event_date === selectedDate) as event (event.id)}
-                <div class="listedEvent">
-                  <div class="listedEventInfo" style="background: {event.color}">
-                    <div class="eventName">
-                      <p class:sliding={event.event_name.length > 15}>{event.event_name}</p>
-                    </div>
-                    <div class="spacer"></div>
-                    <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
-                  </div>
-                  <div class="spacer"></div>
-                  <div class="listedEventControls">
-                    <button>Edit</button>
-                    <button>Delete</button>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </OverlayScrollbarsComponent>
-        </div>
-      </div>
-    </div>
-  </div>
+  <CalendarEventOverlay {events} {colors} {selectedDate} {selectedDateClean} {yearMonth} {setStatus} getEvents={() => getEvents()} secondsToHoursMinutes={secondsToHoursMinutes} setSelectedDate={setSelectedDate}/>
 {/if}
 
 <div id="calendarView">
@@ -232,7 +143,7 @@
       </div>
       <div id="calendarDays">
         {#each days as day (day.date)}
-          <button class="dayContainer" class:nonCurrent={day.enabled == false} onclick={() => { if (!day.enabled) return; selectedDate = day.isodate; selectedDateClean = `${monthNames[day.date.getMonth()].slice(0, 3)} ${day.date.getDate()}, ${day.date.getFullYear()}` }}>
+          <button class="dayContainer" class:nonCurrent={day.enabled == false} onclick={() => { if (!day.enabled) return; selectedDate = day.isodate; selectedDateClean = `${monthNames[day.date.getMonth()].slice(0, 3)} ${day.date.getDate()}, ${day.date.getFullYear()}`; setStatus("Event view opened successfully"); }}>
             <div class="dayInfo">
               <p class="monthAbbreviation">{day.monthabbrev}</p>
               <div class="dayNameContainer" class:currentDay={+day.date === +currentDate}>
@@ -427,14 +338,22 @@
 
   .dayContainer .dayEvents::-webkit-scrollbar {
     width: 6px;
-    background: #444;
+    background: transparent;
     border-radius: 10px;
+  }
+
+  .dayContainer .dayEvents:hover::-webkit-scrollbar {
+    background: #444;
   }
 
   .dayContainer .dayEvents::-webkit-scrollbar-thumb {
     max-height: 30px;
     height: 100%;
     border-radius: 10px;
+    background: transparent;
+  }
+
+  .dayContainer .dayEvents:hover::-webkit-scrollbar-thumb {
     background: #888;
   }
 
@@ -482,255 +401,6 @@
 
   .dayNameContainer.currentDay {
     background: #723fffd0;
-  }
-
-  #addEventOverlay {
-    position: fixed;
-    display: flex;
-    flex-direction: row;
-    align-content: center;
-    z-index: 10000;
-    top: 0;
-    left: 0;
-    bottom: 20px;
-    width: 100vw;
-    height: 100vh - 20px;
-    background: #0f0f0f;
-  }
-
-  #menuBar {
-    position: fixed;
-    display: flex;
-    flex-direction: row;
-    top: 0;
-    left: 0;
-    height: 70px;
-    padding: 5px 20px;
-    gap: 20px;
-    border-bottom: 1px solid #444;
-  }
-
-  #menuBar h2 {
-    margin: 0;
-    max-width: 280px;
-    width: fit-content;
-  }
-
-  #mainContent {
-    position: fixed;
-    display: flex;
-    flex-direction: row;
-    flex: 1;
-    top: 70px;
-    width: 100%;
-    height: calc(100% - 90px);
-    padding: 20px;
-    gap: 20px;
-  }
-
-  #eventsList {
-    display: flex;
-    flex-direction: column;
-    width: 50%;
-    border-radius: 8px;
-    background: #151515;
-    padding: 20px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-  }
-
-  #listedEventsContainer {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 0;
-    gap: 20px;
-    padding: 10px;
-    background: #222;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-  }
-
-  .listedEvent {
-    display: flex;
-    flex-direction: row;
-    flex: 1 1 0;
-    max-height: 65px;
-    padding: 10px;
-    border-radius: 8px;
-    background: #151515;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-  }
-
-  .listedEventInfo {
-    display: flex;
-    flex-direction: row;
-    max-width: 250px;
-    width: 100%;
-    padding: 10px;
-    border-radius: 8px;
-  }
-
-  .listedEventControls {
-    display: flex;
-    flex-direction: row;
-    gap: 10px;
-    padding: 10px;
-    background: red;
-  }
-
-  #eventsList p {
-    margin: 0;
-    font-weight: 800;
-  }
-
-  #addEventContainer {
-    display: flex;
-    flex-direction: column;
-    width: 30%;
-    max-height: 350px;
-    background: #151515;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-  }
-
-  #addEventButtons {
-    display: flex;
-    flex-direction: row;
-    flex: 1 1 0;
-    justify-content: flex-start;
-    max-width: 160px;
-    margin: 10px;
-    gap: 20px;
-    padding: 10px;
-    border-radius: 8px;
-  }
-
-  #addEventButtons button, #menuBar button {
-    width: 60px;
-    height: 30px;
-    background: #222;
-    border: 0;
-    border-radius: 6px;
-    color: #f6f6f6;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  #addEventButtons button:hover, #menuBar button:hover {
-    cursor: pointer;
-    background: #333;
-  }
-
-  #addEventInfo {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 0;
-    height: 240px;
-    gap: 20px;
-    margin: 10px;
-    padding: 10px;
-    border-radius: 8px;
-  }
-
-  #addEventNameContainer {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 0;
-    max-height: 74px;
-    justify-content: center;
-    background: #222;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  #addEventNameContainer:hover, #eventStartTimesContainer:hover, #eventEndTimesContainer:hover, #addEventButtons button:hover, #menuBar button:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0,0,0,1);
-  }
-
-  #addEventNameContainer input {
-    margin: 0 10px;
-    max-height: 30px;
-    height: 100%;
-    max-width: 250px;
-    width: 100%;
-    background: #151515;
-    border-radius: 8px;
-    padding: 2px 10px;
-    color: #f6f6f6;
-  }
-
-  #addEventNameContainer input:focus, #addEventInfo #eventStartEndContainer .addEventInputContainer input:focus {
-    border: 1px solid #723fffd0;
-  }
-
-  #eventStartEndContainer {
-    display: flex;
-    flex-direction: row;
-    flex: 1 1 0;
-    justify-content: flex-start;
-    gap: 20px;
-  }
-
-  #eventStartTimesContainer, #eventEndTimesContainer {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 0;
-    max-width: 150px;
-    padding: 10px;
-    gap: 5px;
-    border-radius: 12px;
-    background: #222;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  #addEventInfo p {
-    margin: 0;
-    text-align: left;
-    padding-left: 10px;
-  }
-
-  #eventStartTimesContainer p, #eventEndTimesContainer p {
-    align-self: flex-start;
-    padding: 0;
-  }
-
-  #addEventContainer h3 {
-    margin: 5px;
-  }
-
-  .addEventInputContainer {
-    display: flex;
-    flex-direction: row;
-    flex: 1 1 0;
-    align-self: center;
-    justify-content: center;
-    align-items: center;
-    padding: 10px;
-    gap: 10px;
-    border-radius: 8px;
-    background: #151515;
-  }
-
-  #addEventInfo #eventStartEndContainer .addEventInputContainer input {
-    margin: 0;
-    max-height: 100vh;
-    height: 100%;
-    width: 100%;
-    background: #222;
-    border-radius: 6px;
-    padding: 2px 10px;
-    color: #f6f6f6;
-    text-align: center;
-    font-size: 20px;
-    font-weight: 800;
-  }
-
-  #addEventInfo #eventStartEndContainer .addEventInputContainer input[type="number"]::-webkit-outer-spin-button, #addEventInfo #eventStartEndContainer .addEventInputContainer input[type="number"]::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
   }
 
   @keyframes slideText {
