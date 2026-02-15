@@ -39,6 +39,13 @@
   let editEventEndMinutes = $state<number>(0);
 
   let selectedEvent = $state<CalendarEvent | null>(null);
+  let displayEventName = $state<string | null>(null);
+
+  $effect(() => {
+    if (selectedEvent !== null) {
+      displayEventName = selectedEvent.event_name;
+    }
+  })
 
   async function saveEvent() {
     try {
@@ -79,6 +86,10 @@
 
       await invoke('update_event', { id: selectedEvent?.id, eventName: editEventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd });
       await getEvents();
+
+      if (editEventNameInput) displayEventName = editEventNameInput?.value;
+
+      setStatus("Event updated successfully");
 
     } catch (error) {
       console.log("Error updating event:", error);
@@ -124,7 +135,7 @@
   </div>
   <div id="mainContent">
     <div id="addEditEventContainer">
-      <div id="addEventContainer">
+      <div id="addEventContainer" role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEvent(); } if (e.key === 'Escape') { e.preventDefault(); setSelectedDate(null); setStatus("Event view closed successfully"); }}}>
         <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
           <h3>Add event</h3>
           <div id="addEventInfo">
@@ -156,13 +167,13 @@
         </OverlayScrollbarsComponent>
       </div>
 
-      <div id="editEventContainer" style="max-height: 348px;">
+      <div id="editEventContainer" role="button" tabindex="0" style="max-height: 348px;" onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); updateEvent(); } if (e.key === 'Escape') { e.preventDefault(); cancelEventUpdate(); }}}>
         {#if !selectedEvent}
           <p style="margin: auto;">No currently selected event.</p>
         {:else}
           <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
             <h3>
-              Edit event:<br><span style="color: {selectedEvent.color}">{selectedEvent.event_name}</span>
+              Edit event:<br><span style="color: {selectedEvent.color}">{displayEventName}</span>
             </h3>
             <div id="editEventInfo">
               <div id="editEventNameContainer">
