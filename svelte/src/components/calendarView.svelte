@@ -151,18 +151,16 @@
               </div>
             </div>
             {#if events.length > 0}
-              <div class="dayEvents">
-                <div style="display: flex; flex-direction: column; gap: 5px; margin-right: 12px;">
-                  {#each events.filter(e => e.event_date === day.isodate) as event (event.id)}
-                    <div class="eventContainer" style="background: {event.color};">
-                      <div class="eventName">
-                        <p class:sliding={event.event_name.length > 15}>{event.event_name}</p>
-                      </div>
-                      <div class="spacer"></div>
-                      <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
+              <div class="dayEvents" style="padding-right: 12px;">
+                {#each events.filter(e => e.event_date === day.isodate) as event (event.id)}
+                  <div class="eventContainer" style="background: {event.color};">
+                    <div class="eventName">
+                      <p class:sliding={event.event_name.length > 15}>{event.event_name}</p>
                     </div>
-                  {/each}
-                </div>
+                    <div class="spacer"></div>
+                    <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
+                  </div>
+                {/each}
               </div>
             {/if}
           </button>
@@ -196,7 +194,7 @@
     flex: 1 1 0;
     height: calc(100vh - 156px);
     background: transparent;
-    padding: 5px 20px 20px;
+    padding: 12px;
   }
 
   #calendarControls {
@@ -331,9 +329,9 @@
     display: flex;
     flex-direction: column-reverse;
     flex: 1 1 0;
-    min-height: 63px;
     gap: 5px;
     overflow: auto;
+    scrollbar-gutter: stable;
   }
 
   .dayContainer .dayEvents::-webkit-scrollbar {
@@ -366,8 +364,7 @@
     flex: 1 1 0;
     align-items: center;
     width: 100%;
-    max-height: 29px;
-    height: 29px;
+    max-height: 50px;
     border-radius: 6px;
     padding: 5px;
   }

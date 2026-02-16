@@ -861,6 +861,10 @@
   border-radius: 8px;
 }
 
+#mainViewTimerFinishedContainer.raised {
+  bottom: 210px;
+}
+
 #mainViewTimerNotificationContainer, #deleteNotificationContent {
   display: flex;
   flex: 1 1 0;

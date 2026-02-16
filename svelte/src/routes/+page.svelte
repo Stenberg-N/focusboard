@@ -27,7 +27,7 @@
   let tabs = $state<Tab[]>([]);
   let uiVisibility = $state({ tabBar: true, runningTimer: true, });
   let topLevelNotes = $derived.by(() => {return currentTabNotes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
-  let foundNotes = $derived.by(() => {return notes.filter(n => stripHtml(n.title) === searchable?.trim().toLocaleLowerCase()) });
+  let foundNotes = $derived.by(() => {return notes.filter(n => stripHtml(n.title).toLowerCase() === searchable?.trim().toLowerCase()) });
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
   let zoomedNoteId = $state<number | null>(null);
@@ -168,7 +168,7 @@
   });
 
   $effect(() => {
-    foundNotes = notes.filter(n => stripHtml(n.title) === searchable?.trim().toLowerCase())
+    foundNotes = notes.filter(n => stripHtml(n.title).toLowerCase() === searchable?.trim().toLowerCase())
   });
 
   let showOverlay = $state<boolean>(false);
@@ -186,7 +186,7 @@
   function stripHtml(html: string | undefined): string {
     if (!html) return '';
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    return doc.body.textContent?.trim().toLowerCase() || '';
+    return doc.body.textContent?.trim() || '';
   }
 
   async function openLogs() {
@@ -622,6 +622,7 @@
       <div id="deleteNotificationContent">
         <div id="deleteNotificationMessage">
           <p>Are you sure you want to delete this note?</p>
+          <p><strong>{stripHtml(currentTabNotes.find(n => n.id == deleteNoteId)?.title)}</strong></p>
         </div>
         <div class="mainViewTimerSpacer"></div>
         <div id="deleteNotificationButtons">
@@ -650,7 +651,7 @@
   {/if}
 
   {#if isRunningTimerFinished}
-    <div id="mainViewTimerFinishedContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+    <div id="mainViewTimerFinishedContainer" class:raised={deleteNoteId} transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
       <div id="mainViewTimerNotificationContainer">
         <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
           <div id="mainViewTimerMessageContainer">
