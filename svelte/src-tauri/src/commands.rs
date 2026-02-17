@@ -539,6 +539,7 @@ pub async fn get_events(
     let events = query_as::<_, CalendarEvent>(
         r#"
         SELECT * FROM events WHERE year_month = ?
+        ORDER BY event_start ASC
         "#
     )
     .bind(year_month)

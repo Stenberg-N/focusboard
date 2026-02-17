@@ -11,7 +11,8 @@
 
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   let monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#E7E9ED', '#C9CBCF', '#AD60E0', '#76D7C4', '#F1948A', '#F7DC6F'];
+  const colors = ['#FF6384', '#36A2EB', '#4BC0C0', '#9966FF', '#FF9F40', '#AD60E0', '#76D7C4', '#F1948A', '#F7DC6F', '#E7E9ED', '#C9CBCF', '#FFCE56'];
+  const brightColors = colors.slice(-3);
 
   let now = new Date();
   let year = $state<number>(now.getFullYear());
@@ -121,7 +122,7 @@
 </script>
 
 {#if selectedDate}
-  <CalendarEventOverlay {events} {colors} {selectedDate} {selectedDateClean} {yearMonth} {setStatus} getEvents={() => getEvents()} secondsToHoursMinutes={secondsToHoursMinutes} setSelectedDate={setSelectedDate}/>
+  <CalendarEventOverlay {events} {colors} {brightColors} {selectedDate} {selectedDateClean} {yearMonth} {setStatus} getEvents={() => getEvents()} secondsToHoursMinutes={secondsToHoursMinutes} setSelectedDate={setSelectedDate}/>
 {/if}
 
 <div id="calendarView">
@@ -155,10 +156,10 @@
                 {#each events.filter(e => e.event_date === day.isodate) as event (event.id)}
                   <div class="eventContainer" style="background: {event.color};">
                     <div class="eventName">
-                      <p class:sliding={event.event_name.length > 15}>{event.event_name}</p>
+                      <p class:sliding={event.event_name.length >= 12} style="color: {brightColors.some(c => c === event.color) ? 'black' : '#f6f6f6'}">{event.event_name}</p>
                     </div>
                     <div class="spacer"></div>
-                    <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
+                    <p style="color: {brightColors.some(c => c === event.color) ? 'black' : '#f6f6f6'}">{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
                   </div>
                 {/each}
               </div>
@@ -327,7 +328,7 @@
 
   .dayContainer .dayEvents {
     display: flex;
-    flex-direction: column-reverse;
+    flex-direction: column;
     flex: 1 1 0;
     gap: 5px;
     overflow: auto;
@@ -345,8 +346,6 @@
   }
 
   .dayContainer .dayEvents::-webkit-scrollbar-thumb {
-    max-height: 30px;
-    height: 100%;
     border-radius: 10px;
     background: transparent;
   }

@@ -7,6 +7,7 @@
   let {
     events,
     colors,
+    brightColors,
     selectedDate,
     selectedDateClean,
     yearMonth,
@@ -17,6 +18,7 @@
   }: {
     events: CalendarEvent[];
     colors: Array<string>;
+    brightColors: Array<string>;
     selectedDate: string | null;
     selectedDateClean: string | null;
     yearMonth: string;
@@ -32,6 +34,9 @@
   let eventEndHours = $state<number>(0);
   let eventEndMinutes = $state<number>(0);
 
+  let showAddEvent = $state<boolean>(false);
+  let height = $state<number>(0);
+
   let editEventNameInput = $state<HTMLInputElement>();
   let editEventStartHours = $state<number>(0);
   let editEventStartMinutes = $state<number>(0);
@@ -45,6 +50,12 @@
     if (selectedEvent !== null) {
       displayEventName = selectedEvent.event_name;
     }
+  })
+
+  $effect(() => {
+    if (showAddEvent) height = 364;
+    if (selectedEvent) height = 388;
+    if (showAddEvent && selectedEvent) height = 732;
   })
 
   async function saveEvent() {
@@ -132,103 +143,108 @@
   <div id="menuBar">
     <h2>Events on {selectedDateClean}</h2>
     <button onclick={() => { setSelectedDate(null); setStatus("Event view closed successfully"); }}>Close</button>
+    <button onclick={() => { showAddEvent = true; }}>Add event</button>
   </div>
   <div id="mainContent">
-    <div id="addEditEventContainer">
-      <div id="addEventContainer" role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEvent(); } if (e.key === 'Escape') { e.preventDefault(); setSelectedDate(null); setStatus("Event view closed successfully"); }}}>
-        <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-          <h3>Add event</h3>
-          <div id="addEventInfo">
-            <div id="addEventNameContainer">
-              <p>Event name</p>
-              <input bind:this={eventNameInput} />
-            </div>
-            <div class="eventStartEndContainer">
-              <div class="eventStartTimesContainer">
-                <p>Event start</p>
-                <div class="eventInputContainer">
-                  <input bind:value={eventStartHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventStartHours = 23; if (value < 0) eventStartHours = 0; }} />
-                  <input bind:value={eventStartMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) eventStartMinutes = 59; if (value < 0) eventStartMinutes = 0; }} />
+    {#if showAddEvent || selectedEvent}
+      <div id="addEditEventContainer" style="height: {height}px;">
+        {#if showAddEvent}
+          <div id="addEventContainer" role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEvent(); } if (e.key === 'Escape') { e.preventDefault(); showAddEvent = false; setStatus("Event cancelled successfully"); }}}>
+            <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
+              <h3>Add event</h3>
+              <div id="addEventInfo">
+                <div id="addEventNameContainer">
+                  <p>Event name</p>
+                  <input bind:this={eventNameInput} />
+                </div>
+                <div class="eventStartEndContainer">
+                  <div class="eventStartTimesContainer">
+                    <p>Event start</p>
+                    <div class="eventInputContainer">
+                      <input type="number" bind:value={eventStartHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventStartHours = 23; if (value < 0) eventStartHours = 0; }} />
+                      <input type="number" bind:value={eventStartMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) eventStartMinutes = 59; if (value < 0) eventStartMinutes = 0; }} />
+                    </div>
+                  </div>
+                  <div class="eventEndTimesContainer">
+                    <p>Event end</p>
+                    <div class="eventInputContainer">
+                      <input type="number" bind:value={eventEndHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventEndHours = 23; if (value < 0) eventEndHours = 0; }} />
+                      <input type="number" bind:value={eventEndMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) eventEndMinutes = 59; if (value < 0) eventEndMinutes = 0; }} />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div class="eventEndTimesContainer">
-                <p>Event end</p>
-                <div class="eventInputContainer">
-                  <input type="number" bind:value={eventEndHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventEndHours = 23; if (value < 0) eventEndHours = 0; }} />
-                  <input type="number" bind:value={eventEndMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) eventEndMinutes = 59; if (value < 0) eventEndMinutes = 0; }} />
-                </div>
+              <div class="eventFormButtons">
+                <button onclick={saveEvent}>Add</button>
+                <button onclick={() => { showAddEvent = false; setStatus("Event cancelled successfully"); }}>Cancel</button>
               </div>
-            </div>
+            </OverlayScrollbarsComponent>
           </div>
-          <div class="eventFormButtons">
-            <button onclick={saveEvent}>Add event</button>
-            <button onclick={() => { setSelectedDate(null); setStatus("Event view closed successfully"); }}>Cancel</button>
-          </div>
-        </OverlayScrollbarsComponent>
-      </div>
+        {/if}
 
-      <div id="editEventContainer" role="button" tabindex="0" style="max-height: 348px;" onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); updateEvent(); } if (e.key === 'Escape') { e.preventDefault(); cancelEventUpdate(); }}}>
-        {#if !selectedEvent}
-          <p style="margin: auto;">No currently selected event.</p>
-        {:else}
-          <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-            <h3>
-              Edit event:<br><span style="color: {selectedEvent.color}">{displayEventName}</span>
-            </h3>
-            <div id="editEventInfo">
-              <div id="editEventNameContainer">
-                <p>Event name</p>
-                <input value={selectedEvent?.event_name} bind:this={editEventNameInput} />
-              </div>
-              <div class="eventStartEndContainer">
-                <div class="eventStartTimesContainer">
-                  <p>Event start</p>
-                  <div class="eventInputContainer">
-                    <input bind:value={editEventStartHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) editEventStartHours = 23; if (value < 0) editEventStartHours = 0; }} />
-                    <input bind:value={editEventStartMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) editEventStartMinutes = 59; if (value < 0) editEventStartMinutes = 0; }} />
+        {#if selectedEvent}
+          <div id="editEventContainer" class:moved={showAddEvent} role="button" tabindex="0" style="max-height: 348px;" onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); updateEvent(); } if (e.key === 'Escape') { e.preventDefault(); cancelEventUpdate(); }}}>
+            <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
+              <h3>
+                Edit event:<br><span style="color: {selectedEvent.color}">{displayEventName}</span>
+              </h3>
+              <div id="editEventInfo">
+                <div id="editEventNameContainer">
+                  <p>Event name</p>
+                  <input value={selectedEvent?.event_name} bind:this={editEventNameInput} />
+                </div>
+                <div class="eventStartEndContainer">
+                  <div class="eventStartTimesContainer">
+                    <p>Event start</p>
+                    <div class="eventInputContainer">
+                      <input type="number" bind:value={editEventStartHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) editEventStartHours = 23; if (value < 0) editEventStartHours = 0; }} />
+                      <input type="number" bind:value={editEventStartMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) editEventStartMinutes = 59; if (value < 0) editEventStartMinutes = 0; }} />
+                    </div>
+                  </div>
+                  <div class="eventEndTimesContainer">
+                    <p>Event end</p>
+                    <div class="eventInputContainer">
+                      <input type="number" bind:value={editEventEndHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) editEventEndHours = 23; if (value < 0) editEventEndHours = 0; }} />
+                      <input type="number" bind:value={editEventEndMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) editEventEndMinutes = 59; if (value < 0) editEventEndMinutes = 0; }} />
+                    </div>
                   </div>
                 </div>
-                <div class="eventEndTimesContainer">
-                  <p>Event end</p>
-                  <div class="eventInputContainer">
-                    <input type="number" bind:value={editEventEndHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) editEventEndHours = 23; if (value < 0) editEventEndHours = 0; }} />
-                    <input type="number" bind:value={editEventEndMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) editEventEndMinutes = 59; if (value < 0) editEventEndMinutes = 0; }} />
-                  </div>
-                </div>
               </div>
-            </div>
-            <div class="eventFormButtons">
-              <button onclick={updateEvent}>Save</button>
-              <button onclick={cancelEventUpdate}>Cancel</button>
-            </div>
-          </OverlayScrollbarsComponent>
+              <div class="eventFormButtons">
+                <button onclick={updateEvent}>Save</button>
+                <button onclick={cancelEventUpdate}>Close</button>
+              </div>
+            </OverlayScrollbarsComponent>
+          </div>
         {/if}
       </div>
+    {/if}
+
+    <div id="timeline">
+
     </div>
 
     <div id="eventsList">
-      <div id="listedEventsContainer">
-        <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-          <div style="display: flex; flex-direction: column; gap: 20px; margin: 20px;">
-            {#each events.filter(e => e.event_date === selectedDate) as event (event.id)}
-              <div class="listedEvent">
-                <div class="listedEventInfo" style="background: {event.color}">
-                  <div class="eventName">
-                    <p class:sliding={event.event_name.length > 15}>{event.event_name}</p>
-                  </div>
-                  <div class="spacer"></div>
-                  <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
+      <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
+        <div style="display: flex; flex-direction: column; gap: 20px; margin: 12px;">
+          {#each events.filter(e => e.event_date === selectedDate) as event (event.id)}
+            <div class="listedEvent">
+              <div class="listedEventInfo" style="background: {event.color}; color: {brightColors.some(c => c === event.color) ? 'black' : '#f6f6f6'}">
+                <div class="eventName">
+                  <p class:sliding={event.event_name.length >= 12}>{event.event_name}</p>
                 </div>
                 <div class="spacer"></div>
-                <div class="listedEventControls">
-                  <button onclick={() => { startEdit(event); }}>Edit</button>
-                  <button onclick={() => { deleteEvent(event.id); }}>Delete</button>
-                </div>
+                <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
               </div>
-            {/each}
-          </div>
-        </OverlayScrollbarsComponent>
-      </div>
+              <div class="spacer"></div>
+              <div class="listedEventControls">
+                <button onclick={() => { startEdit(event); }}>Edit</button>
+                <button onclick={() => { deleteEvent(event.id); }}>Delete</button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </OverlayScrollbarsComponent>
     </div>
   </div>
 </div>
@@ -270,58 +286,47 @@
     position: fixed;
     display: flex;
     flex-direction: row;
+    justify-content: flex-end;
     flex: 1;
     top: 70px;
     width: 100%;
     height: calc(100vh - 90px);
-    padding: 20px;
-    gap: 20px;
+    padding: 10px;
+    gap: 10px;
   }
 
-  #addEditEventContainer {
+  #timeline {
     display: flex;
-    flex-direction: column;
-    width: 40%;
-    gap: 20px;
+    flex: 1 1 0;
+    width: 100%;
+    height: 100%;
+    border: 1px solid red;
   }
 
   #eventsList {
     display: flex;
     flex-direction: column;
-    width: 60%;
+    width: 15%;
     border-radius: 8px;
     background: #151515;
-    padding: 10px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-  }
-
-  #listedEventsContainer {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 0;
-    gap: 20px;
-    padding: 10px;
-    background: #222;
-    border-radius: 8px;
-    overflow: hidden;
+    padding: 2px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   }
 
   .listedEvent {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     flex: 1 1 0;
-    max-height: 65px;
+    max-height: 120px;
     padding: 10px;
     border-radius: 8px;
-    background: #151515;
+    background: #222;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   }
 
   .listedEventInfo {
     display: flex;
     flex-direction: row;
-    max-width: 250px;
     width: 100%;
     padding: 10px;
     border-radius: 8px;
@@ -330,13 +335,15 @@
   .listedEventControls {
     display: flex;
     flex-direction: row;
+    justify-content: right;
     gap: 10px;
-    padding: 10px;
+    padding-top: 10px;
   }
 
   #eventsList p {
     margin: 0;
     font-weight: 800;
+    font-size: 14px;
   }
 
   .eventName {
@@ -353,16 +360,41 @@
     animation: slideText 3.5s linear infinite;
   }
 
+  #addEditEventContainer {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    top: 90px;
+    left: 20px;
+    z-index: 10001;
+    gap: 20px;
+    padding: 20px;
+    border-radius: 8px;
+    background: #222;
+  }
+
   #addEventContainer, #editEventContainer {
+    z-index: 10002;
     display: flex;
     flex-direction: column;
     flex: 1 1 0;
-    width: 100%;
-    max-height: 324px;
+    max-width: 500px;
     overflow: auto;
     background: #151515;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+  }
+
+  #addEventContainer {
+    max-height: 324px;
+  }
+
+  #editEventContainer {
+    max-height: 348px;
+  }
+
+  #editEventContainer.moved {
+    top: 434px;
   }
 
   .eventFormButtons {
@@ -423,7 +455,6 @@
   #addEventNameContainer input, #editEventNameContainer input {
     max-height: 40px;
     height: 100%;
-    max-width: 250px;
     width: 100%;
     background: #151515;
     border-radius: 8px;
