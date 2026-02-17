@@ -12,7 +12,7 @@
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   let monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const colors = ['#FF6384', '#36A2EB', '#4BC0C0', '#9966FF', '#FF9F40', '#AD60E0', '#76D7C4', '#F1948A', '#F7DC6F', '#E7E9ED', '#C9CBCF', '#FFCE56'];
-  const brightColors = colors.slice(-3);
+  const brightColors = colors.slice(-4);
 
   let now = new Date();
   let year = $state<number>(now.getFullYear());

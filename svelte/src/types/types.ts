@@ -42,3 +42,5 @@ export type CalendarEvent = {
   event_end: number;
   color: string;
 }
+
+export type CalendarEventWithLane = CalendarEvent & { lane: number };

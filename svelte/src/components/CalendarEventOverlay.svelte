@@ -1,8 +1,10 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
+  import { fly } from 'svelte/transition';
+  import { cubicInOut } from 'svelte/easing';
 
-  import type { CalendarEvent } from "../types/types";
+  import type { CalendarEvent, CalendarEventWithLane } from "../types/types";
 
   let {
     events,
@@ -33,9 +35,7 @@
   let eventStartMinutes = $state<number>(0);
   let eventEndHours = $state<number>(0);
   let eventEndMinutes = $state<number>(0);
-
-  let showAddEvent = $state<boolean>(false);
-  let height = $state<number>(0);
+  let deleteEventId = $state<number | null>(null);
 
   let editEventNameInput = $state<HTMLInputElement>();
   let editEventStartHours = $state<number>(0);
@@ -43,8 +43,15 @@
   let editEventEndHours = $state<number>(0);
   let editEventEndMinutes = $state<number>(0);
 
+  let showAddEvent = $state<boolean>(false);
   let selectedEvent = $state<CalendarEvent | null>(null);
   let displayEventName = $state<string | null>(null);
+  let displayedEvents = $state<CalendarEventWithLane[]>([]);
+  const hours = Array.from({ length: 25 }, (_, i) => i);
+
+  let height = $state<number>(0);
+  let maxLanes = $state<number>(0);
+  const TOTAL_SECONDS = 86400;
 
   $effect(() => {
     if (selectedEvent !== null) {
@@ -58,6 +65,14 @@
     if (showAddEvent && selectedEvent) height = 732;
   })
 
+  $effect(() => {
+    displayedEvents = assignLanes(events.filter(e => e.event_date === selectedDate))
+  })
+
+  $effect(() => {
+    maxLanes = displayedEvents.length ? Math.max(...displayedEvents.map((e) => e.lane)) + 1 : 1;
+  })
+
   async function saveEvent() {
     try {
       if (eventNameInput?.value.trim() == '') {
@@ -69,15 +84,20 @@
       let timeStart = (eventStartHours * 3600) + (eventStartMinutes * 60);
       let timeEnd = (eventEndHours * 3600) + (eventEndMinutes * 60);
 
-      await invoke('insert_event', { eventDate: selectedDate, yearMonth: yearMonth, eventName: eventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd, color: randomColor });
-      await getEvents();
+      if (timeStart > timeEnd) {
+        setStatus("Invalid event start and/or end times");
+        return;
+      } else {
+        await invoke('insert_event', { eventDate: selectedDate, yearMonth: yearMonth, eventName: eventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd, color: randomColor });
+        await getEvents();
 
-      eventStartHours = 0;
-      eventStartMinutes = 0;
-      eventEndHours = 0;
-      eventEndMinutes = 0;
+        eventStartHours = 0;
+        eventStartMinutes = 0;
+        eventEndHours = 0;
+        eventEndMinutes = 0;
 
-      setStatus("Added event successfully");
+        setStatus("Added event successfully");
+      }
 
     } catch (error) {
       console.log("Error inserting event:", error);
@@ -95,12 +115,17 @@
       let timeStart = (editEventStartHours * 3600) + (editEventStartMinutes * 60);
       let timeEnd = (editEventEndHours * 3600) + (editEventEndMinutes * 60);
 
-      await invoke('update_event', { id: selectedEvent?.id, eventName: editEventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd });
-      await getEvents();
+      if (timeStart > timeEnd) {
+        setStatus("Invalid event start and/or end times");
+        return;
+      } else {
+        await invoke('update_event', { id: selectedEvent?.id, eventName: editEventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd });
+        await getEvents();
 
-      if (editEventNameInput) displayEventName = editEventNameInput?.value;
+        if (editEventNameInput) displayEventName = editEventNameInput?.value;
 
-      setStatus("Event updated successfully");
+        setStatus("Event updated successfully");
+      }
 
     } catch (error) {
       console.log("Error updating event:", error);
@@ -115,6 +140,7 @@
         await getEvents();
       }
 
+      deleteEventId = null;
       setStatus(`Deleted event ${selectedEvent?.event_name} successfully`);
     } catch (error) {
       console.log("Error deleting event:", error);
@@ -137,7 +163,57 @@
     selectedEvent = null;
     setStatus("Edit closed");
   }
+
+  function getLeft(start: number) {
+    return (start / TOTAL_SECONDS) * 100;
+  }
+
+  function getWidth(start: number, end: number) {
+    return ((end - start) / TOTAL_SECONDS) * 100;
+  }
+
+  function assignLanes(events: CalendarEvent[]) {
+    if (!events.length) return [];
+
+    const lanes = [];
+
+    for (const event of events) {
+      let placed = false;
+
+      for (const lane of lanes) {
+        const overlaps = lane.some((e: CalendarEvent) => !(event.event_end <= e.event_start || event.event_start >= e.event_end));
+
+        if (!overlaps) {
+          lane.push(event);
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) {
+        lanes.push([event]);
+      }
+    }
+
+    return lanes.flatMap((lane, index) => lane.map((event) => ({ ...event, lane: index })));
+  }
 </script>
+
+{#if deleteEventId}
+  <div id="deleteNotificationContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+    <div id="deleteNotificationContent">
+      <div id="deleteNotificationMessage">
+        <p>Are you sure you want to delete this event?</p>
+        <p><strong>{events.find(e => e.id === deleteEventId)?.event_name}</strong></p>
+      </div>
+      <div style="display: flex; flex: 1; bottom-border: 1px solid #444;"></div>
+      <div id="deleteNotificationButtons">
+        <button onclick={() => { if (deleteEventId) deleteEvent(deleteEventId); }}>Confirm</button>
+        <button onclick={() => { deleteEventId = null; }}>Cancel</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <div id="addEventOverlay">
   <div id="menuBar">
@@ -221,7 +297,24 @@
     {/if}
 
     <div id="timeline">
+      <div id="timelineOverflow" style="width: 400%;">
+        <div id="timeAxis">
+          {#each hours as hour}
+            <div class="tick" style="left: {(hour / 24) * 100}%;">{hour.toString().padStart(2, '0')}</div>
+          {/each}
+        </div>
 
+        <div id="eventsBar" style="height: {maxLanes * 60}px;">
+          <div class="gridlines"></div>
+          {#each displayedEvents as event (event.id)}
+            <div style="position: absolute; left: {getLeft(event.event_start)}%; top: {event.lane * 60}px; width: {getWidth(event.event_start, event.event_end)}%;">
+              <div class="listedEventInfo" style="background: {event.color}; color: {brightColors.some(c => c === event.color) ? 'black' : '#f6f6f6'}; height: 50px; align-items: center;">
+                <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
     </div>
 
     <div id="eventsList">
@@ -239,7 +332,7 @@
               <div class="spacer"></div>
               <div class="listedEventControls">
                 <button onclick={() => { startEdit(event); }}>Edit</button>
-                <button onclick={() => { deleteEvent(event.id); }}>Delete</button>
+                <button onclick={() => { deleteEventId = event.id; }}>Delete</button>
               </div>
             </div>
           {/each}
@@ -297,10 +390,71 @@
 
   #timeline {
     display: flex;
+    flex-direction: column;
     flex: 1 1 0;
     width: 100%;
     height: 100%;
-    border: 1px solid red;
+    overflow: auto;
+    scrollbar-gutter: stable;
+  }
+
+  #timeAxis {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 30px;
+    margin: 5px 15px;
+    pointer-events: none;
+    white-space: nowrap;
+    border: 1px solid green;
+  }
+
+  #timeAxis .tick {
+    position: absolute;
+    transform: translateX(-50%);
+    font-weight: 600;
+  }
+
+  #eventsBar {
+    position: relative;
+    margin: 5px 15px;
+    border: 1px solid yellow;
+  }
+
+  #eventsBar .gridlines {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(to right, rgba(255,255,255,0.1) 2px, transparent 1px);
+    background-size: calc(100% / 48) 100%;
+    pointer-events: none;
+  }
+
+  #timeline::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    background: transparent;
+    border-radius: 10px;
+  }
+
+  #timeline::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  #timeline:hover::-webkit-scrollbar {
+    background: #444;
+  }
+
+  #timeline::-webkit-scrollbar-thumb {
+    border-radius: 10px;
+    background: transparent;
+  }
+
+  #timeline:hover::-webkit-scrollbar-thumb {
+    background: #888;
+  }
+
+  #timeline::-webkit-scrollbar-thumb:hover {
+    background: #ccc;
   }
 
   #eventsList {
@@ -527,6 +681,74 @@
   .eventStartEndContainer .eventInputContainer input[type="number"]::-webkit-outer-spin-button, .eventStartEndContainer .eventInputContainer input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
+  }
+
+  #deleteNotificationContainer {
+    position: fixed;
+    display: flex;
+    right: 5px;
+    bottom: 25px;
+    z-index: 10005;
+    max-width: 400px;
+    width: 100%;
+    max-height: 150px;
+    height: 100%;
+    background: #151515;
+    border: 1px solid #444;
+    border-radius: 8px;
+  }
+
+  #deleteNotificationContent {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    padding: 10px;
+  }
+
+  #deleteNotificationButtons {
+    display: flex;
+    flex-direction: row;
+    max-height: 30px;
+    height: 100%;
+    gap: 10px;
+  }
+
+  #deleteNotificationContent p {
+    flex: 1 1 0;
+    overflow-y: auto;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    word-wrap: break-word;
+    margin: 0;
+  }
+
+  #deleteNotificationButtons button {
+    background-color: #222;
+    color: #f6f6f6;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    max-width: 50px;
+    width: 100%;
+    max-height: 26px;
+    height: 100%;
+    font-size: 14px;
+    margin-top: 4px;
+    padding: 2px 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  #deleteNotificationButtons button {
+    max-width: 70px;
+  }
+
+  #deleteNotificationButtons button:hover {
+    cursor: pointer;
+    background: #333;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,1);
   }
 
   @keyframes slideText {
