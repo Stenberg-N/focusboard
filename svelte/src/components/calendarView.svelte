@@ -3,6 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import debounce from 'lodash/debounce';
+  import VirtualList from '@sveltejs/svelte-virtual-list';
 
   import CalendarEventOverlay from "./CalendarEventOverlay.svelte";
 
@@ -24,6 +25,14 @@
   let yearMonth = $derived.by(() => `${String(year)}-${String(Number(month+1))}`);
 
   let events = $state<CalendarEvent[]>([]);
+  let eventsMap = $derived.by(() => {
+    const map = new Map<string, CalendarEvent[]>();
+    events.forEach(e => {
+      if (!map.has(e.event_date)) map.set(e.event_date, []);
+      map.get(e.event_date)?.push(e);
+    });
+    return map;
+  });
 
   let headers = $state<Array<string>>([]);
   let days = $state<CalendarDay[]>([]);
@@ -122,7 +131,7 @@
 </script>
 
 {#if selectedDate}
-  <CalendarEventOverlay {events} {colors} {brightColors} {selectedDate} {selectedDateClean} {yearMonth} {setStatus} getEvents={() => getEvents()} secondsToHoursMinutes={secondsToHoursMinutes} setSelectedDate={setSelectedDate}/>
+  <CalendarEventOverlay {events} {eventsMap} {colors} {brightColors} {selectedDate} {selectedDateClean} {yearMonth} {setStatus} getEvents={() => getEvents()} secondsToHoursMinutes={secondsToHoursMinutes} setSelectedDate={setSelectedDate}/>
 {/if}
 
 <div id="calendarView">
@@ -152,16 +161,15 @@
               </div>
             </div>
             {#if events.length > 0}
-              <div class="dayEvents" style="padding-right: 12px;">
-                {#each events.filter(e => e.event_date === day.isodate) as event (event.id)}
-                  <div class="eventContainer" style="background: {event.color};">
+              <div class="dayEvents">
+                <VirtualList items={eventsMap.get(day.isodate) || []} let:item>
+                  <div class="eventContainer" style="background: {item.color};">
                     <div class="eventName">
-                      <p class:sliding={event.event_name.length >= 12} style="color: {brightColors.some(c => c === event.color) ? 'black' : '#f6f6f6'}">{event.event_name}</p>
+                      <p class:sliding={item.event_name.length >= 18} style="color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">{item.event_name}</p>
                     </div>
-                    <div class="spacer"></div>
-                    <p style="color: {brightColors.some(c => c === event.color) ? 'black' : '#f6f6f6'}">{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
+                    <p style="color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">{secondsToHoursMinutes(item.event_start)}-{secondsToHoursMinutes(item.event_end)}</p>
                   </div>
-                {/each}
+                </VirtualList>
               </div>
             {/if}
           </button>
@@ -172,11 +180,6 @@
 </div>
 
 <style>
-  .spacer {
-    display: flex;
-    flex: 1;
-  }
-
   #calendarView {
     display: flex;
     flex-direction: column;
@@ -330,40 +333,46 @@
     display: flex;
     flex-direction: column;
     flex: 1 1 0;
-    gap: 5px;
     overflow: auto;
-    scrollbar-gutter: stable;
   }
 
-  .dayContainer .dayEvents::-webkit-scrollbar {
-    width: 6px;
-    background: transparent;
-    border-radius: 10px;
+  :global(svelte-virtual-list-contents) {
+    margin-right: 5px;
   }
 
-  .dayContainer .dayEvents:hover::-webkit-scrollbar {
-    background: #444;
-  }
+  :global(svelte-virtual-list-viewport) {
+    &::-webkit-scrollbar {
+      width: 6px;
+      background: transparent;
+      border-radius: 10px;
+    }
 
-  .dayContainer .dayEvents::-webkit-scrollbar-thumb {
-    border-radius: 10px;
-    background: transparent;
-  }
+    &:hover::-webkit-scrollbar {
+      background: #444;
+    }
 
-  .dayContainer .dayEvents:hover::-webkit-scrollbar-thumb {
-    background: #888;
-  }
+    &::-webkit-scrollbar-thumb {
+      border-radius: 10px;
+      background: transparent;
+    }
 
-  .dayContainer .dayEvents::-webkit-scrollbar-thumb:hover {
-    background: #ccc;
+    &:hover::-webkit-scrollbar-thumb {
+      background: #888;
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background: #ccc;
+    }
   }
 
   .dayContainer .dayEvents .eventContainer {
     display: flex;
+    flex-direction: column;
     flex: 1 1 0;
     align-items: center;
-    width: 100%;
-    max-height: 50px;
+    max-width: 150px;
+    height: 50px;
+    margin-bottom: 5px;
     border-radius: 6px;
     padding: 5px;
   }
@@ -375,7 +384,7 @@
 
   .eventName {
     display: flex;
-    max-width: 50%;
+    max-width: 100%;
     overflow: hidden;
   }
 
@@ -404,7 +413,7 @@
       transform: translateX(0);
     }
     100% {
-      transform: translateX(-300%);
+      transform: translateX(-250%);
     }
   }
 

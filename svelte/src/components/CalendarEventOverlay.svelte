@@ -3,11 +3,13 @@
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import { fly } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
+  import VirtualList from '@sveltejs/svelte-virtual-list';
 
   import type { CalendarEvent, CalendarEventWithLane } from "../types/types";
 
   let {
     events,
+    eventsMap,
     colors,
     brightColors,
     selectedDate,
@@ -19,6 +21,7 @@
     setSelectedDate,
   }: {
     events: CalendarEvent[];
+    eventsMap: Map<string, CalendarEvent[]>;
     colors: Array<string>;
     brightColors: Array<string>;
     selectedDate: string | null;
@@ -46,7 +49,7 @@
   let showAddEvent = $state<boolean>(false);
   let selectedEvent = $state<CalendarEvent | null>(null);
   let displayEventName = $state<string | null>(null);
-  let displayedEvents = $state<CalendarEventWithLane[]>([]);
+  let displayedEvents: CalendarEventWithLane[] = $derived.by(() => { return assignLanes(events.filter(e => e.event_date === selectedDate)) });
   const hours = Array.from({ length: 25 }, (_, i) => i);
 
   let height = $state<number>(0);
@@ -63,10 +66,6 @@
     if (showAddEvent) height = 364;
     if (selectedEvent) height = 388;
     if (showAddEvent && selectedEvent) height = 732;
-  })
-
-  $effect(() => {
-    displayedEvents = assignLanes(events.filter(e => e.event_date === selectedDate))
   })
 
   $effect(() => {
@@ -298,46 +297,43 @@
 
     <div id="timeline">
       <div id="timelineOverflow" style="width: 400%;">
+        <div id="timeAxisBackground"></div>
         <div id="timeAxis">
           {#each hours as hour}
             <div class="tick" style="left: {(hour / 24) * 100}%;">{hour.toString().padStart(2, '0')}</div>
           {/each}
         </div>
 
-        <div id="eventsBar" style="height: {maxLanes * 60}px;">
+        <div id="eventsBar" style="min-height: calc(100vh - 161px); height: {maxLanes * 60}px;">
           <div class="gridlines"></div>
           {#each displayedEvents as event (event.id)}
-            <div style="position: absolute; left: {getLeft(event.event_start)}%; top: {event.lane * 60}px; width: {getWidth(event.event_start, event.event_end)}%;">
+            <button class="timelineEvent" style="position: absolute; left: {getLeft(event.event_start)}%; top: {event.lane * 60}px; width: {getWidth(event.event_start, event.event_end)}%;" onclick={() => { startEdit(event); }}>
               <div class="listedEventInfo" style="background: {event.color}; color: {brightColors.some(c => c === event.color) ? 'black' : '#f6f6f6'}; height: 50px; align-items: center;">
                 <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
               </div>
-            </div>
+            </button>
           {/each}
         </div>
       </div>
     </div>
 
     <div id="eventsList">
-      <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-        <div style="display: flex; flex-direction: column; gap: 20px; margin: 12px;">
-          {#each events.filter(e => e.event_date === selectedDate) as event (event.id)}
-            <div class="listedEvent">
-              <div class="listedEventInfo" style="background: {event.color}; color: {brightColors.some(c => c === event.color) ? 'black' : '#f6f6f6'}">
-                <div class="eventName">
-                  <p class:sliding={event.event_name.length >= 12}>{event.event_name}</p>
-                </div>
-                <div class="spacer"></div>
-                <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
-              </div>
-              <div class="spacer"></div>
-              <div class="listedEventControls">
-                <button onclick={() => { startEdit(event); }}>Edit</button>
-                <button onclick={() => { deleteEventId = event.id; }}>Delete</button>
-              </div>
+      <VirtualList items={eventsMap.get(selectedDate!)} let:item>
+        <div class="listedEvent">
+          <div class="listedEventInfo" style="background: {item.color}; color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">
+            <div class="eventName">
+              <p class:sliding={item.event_name.length >= 12}>{item.event_name}</p>
             </div>
-          {/each}
+            <div class="spacer"></div>
+            <p>{secondsToHoursMinutes(item.event_start)}-{secondsToHoursMinutes(item.event_end)}</p>
+          </div>
+          <div class="spacer"></div>
+          <div class="listedEventControls">
+            <button onclick={() => { startEdit(item); }}>Edit</button>
+            <button onclick={() => { deleteEventId = item.id; }}>Delete</button>
+          </div>
         </div>
-      </OverlayScrollbarsComponent>
+      </VirtualList>
     </div>
   </div>
 </div>
@@ -384,8 +380,8 @@
     top: 70px;
     width: 100%;
     height: calc(100vh - 90px);
-    padding: 10px;
-    gap: 10px;
+    padding-left: 10px;
+    gap: 5px;
   }
 
   #timeline {
@@ -398,15 +394,26 @@
     scrollbar-gutter: stable;
   }
 
+  #timeAxisBackground {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 40px;
+    z-index: 1;
+    border-bottom: 1px solid #444;
+    background: #151515;
+  }
+
   #timeAxis {
-    position: relative;
+    position: sticky;
+    top: 5px;
+    z-index: 1;
     display: flex;
     align-items: center;
     height: 30px;
     margin: 5px 15px;
     pointer-events: none;
     white-space: nowrap;
-    border: 1px solid green;
   }
 
   #timeAxis .tick {
@@ -417,16 +424,28 @@
 
   #eventsBar {
     position: relative;
-    margin: 5px 15px;
-    border: 1px solid yellow;
+    margin: 10px 15px;
   }
 
   #eventsBar .gridlines {
     position: absolute;
     inset: 0;
-    background-image: linear-gradient(to right, rgba(255,255,255,0.1) 2px, transparent 1px);
+    background-image: linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px);
     background-size: calc(100% / 48) 100%;
     pointer-events: none;
+  }
+
+  #eventsBar .timelineEvent {
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  #eventsBar .timelineEvent:hover {
+    cursor: pointer;
+    filter: brightness(0.8);
   }
 
   #timeline::-webkit-scrollbar {
@@ -434,6 +453,10 @@
     height: 6px;
     background: transparent;
     border-radius: 10px;
+  }
+
+  #timeline::-webkit-scrollbar-track {
+    margin-top: 40px;
   }
 
   #timeline::-webkit-scrollbar-corner {
@@ -460,11 +483,11 @@
   #eventsList {
     display: flex;
     flex-direction: column;
+    z-index: 1;
     width: 15%;
-    border-radius: 8px;
     background: #151515;
-    padding: 2px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+    border-left: 1px solid #444;
+    padding: 16px 5px 1px 16px;
   }
 
   .listedEvent {
@@ -472,6 +495,7 @@
     flex-direction: column;
     flex: 1 1 0;
     max-height: 120px;
+    margin-bottom: 20px;
     padding: 10px;
     border-radius: 8px;
     background: #222;
@@ -498,6 +522,7 @@
     margin: 0;
     font-weight: 800;
     font-size: 14px;
+    pointer-events: none;
   }
 
   .eventName {
@@ -573,9 +598,17 @@
     transition: transform 0.2s, box-shadow 0.2s;
   }
 
+  .listedEventControls button {
+    background: #333;
+  }
+
   .eventFormButtons button:hover, #menuBar button:hover, .listedEventControls button:hover {
     cursor: pointer;
     background: #333;
+  }
+
+  .listedEventControls button:hover {
+    background: #444;
   }
 
   #addEventInfo, #editEventInfo {
@@ -601,7 +634,7 @@
     transition: transform 0.2s, box-shadow 0.2s;
   }
 
-  #addEventNameContainer:hover, #editEventNameContainer:hover, .eventStartTimesContainer:hover, .eventEndTimesContainer:hover, .eventFormButtons button:hover, #menuBar button:hover, .listedEventControls button:hover {
+  #addEventNameContainer:hover, #editEventNameContainer:hover, .eventStartTimesContainer:hover, .eventEndTimesContainer:hover, .eventFormButtons button:hover, #menuBar button:hover, .listedEventControls button:hover, #eventsBar .timelineEvent:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 24px rgba(0,0,0,1);
   }
