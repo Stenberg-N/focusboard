@@ -11,10 +11,13 @@
   import { TextStyle } from '@tiptap/extension-text-style';
   import Color from '@tiptap/extension-color';
   import { Extension } from '@tiptap/core';
+  import { getContext } from 'svelte';
 
   import type { Note } from '../types/types';
   import 'overlayscrollbars/overlayscrollbars.css';
   import '../routes/app.css';
+
+  const { setDeleteNoteId } = getContext<{ getDeleteNoteId: () => number | null, setDeleteNoteId: (id: number | null) => void}>('deleteNoteContext');
 
   let {
     note,
@@ -26,8 +29,6 @@
     zoomedNoteId = null,
     isSearching = false,
     getAllNotes,
-    startDeleteNote,
-    deleteNoteId = null,
   }: {
     note: Note;
     reloadNotes: () => void;
@@ -38,19 +39,12 @@
     zoomedNoteId: number | null;
     isSearching: boolean;
     getAllNotes: () => Promise<void>;
-    startDeleteNote: (id: number) => void;
-    deleteNoteId: number | null;
   } = $props();
 
-  let childNotes = $derived.by(() => {return currentTabNotes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
+  let childNotes = $derived.by(() => { return currentTabNotes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
   let previewChildNotes = $state<Note[] | null>(null);
 
   let isZoomed = $derived(zoomedNoteId === note.id);
-
-  $effect(() => {
-    childNotes = currentTabNotes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0))
-  });
-
   let open = $derived(noteOpenStates[note.id] ?? true);
 
   let isEditing = $state<boolean>(false);
@@ -247,7 +241,11 @@
   function handleDndFinalize(e: CustomEvent<DndEvent<Note>>) {
     previewChildNotes = null;
     const newItems = [...e.detail.items];
-    childNotes = newItems;
+
+    newItems.forEach((item, index) => {
+      item.order_id = index + 1;
+    });
+    childNotes = [...newItems];
 
     const orderedIds = newItems.map(n => n.id);
 
@@ -276,24 +274,15 @@
       try {
         await invoke('reorder_notes', { noteIds: currentBatch.ids, tabId: currentBatch.tabId, parentId: currentBatch.parentId });
 
-        if (isSearching) {
-          await getAllNotes();
-        } else {
-          await reloadNotes();
-        }
-
         setStatus('Sub-notes reordered successfully');
         break;
       } catch (error) {
         console.error("Failed to reorder sub-notes:", error);
 
         if (attempt >= maxRetries) {
-          if (isSearching) {
-            await getAllNotes();
-          } else {
-            await reloadNotes();
-          }
-          setStatus(`Failed to reorder sub-notes! Retrying. Error: ${error}`);
+          await reloadNotes();
+
+          setStatus(`Failed to reorder sub-notes: ${error}`);
           break;
         }
         await new Promise(r => setTimeout(r, 200 * Math.pow(2, attempt)));
@@ -462,13 +451,13 @@
         <button onclick={OpenAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Open all</button>
         <button onclick={CloseAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Close all</button>
         <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
-        <button onclick={() => startDeleteNote(note.id)} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
+        <button onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
       {:else if !isCategory}
         {#if note.parent_id !== null}
           <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>{open ? 'Hide' : 'Show'}</button>
         {/if}
         <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
-        <button onclick={() => startDeleteNote(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isZoomed}>Delete</button>
+        <button onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isZoomed}>Delete</button>
       {/if}
     </div>
     {#if isEditing}
@@ -528,7 +517,7 @@
                 {#key childNotes.map(n => n.id).join('-')}
                   {#each (previewChildNotes ?? childNotes) as child (child.id)}
                     <div animate:flip={{ duration: flipDurationMs }} data-is-dnd-shadow-item-hint={(child as any)[SHADOW_ITEM_MARKER_PROPERTY_NAME] ?? false}>
-                      <ComponentNote note={child} {reloadNotes} {setStatus} {currentTabNotes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} {startDeleteNote} deleteNoteId={deleteNoteId} />
+                      <ComponentNote note={child} {reloadNotes} {setStatus} {currentTabNotes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} />
                     </div>
                   {/each}
                 {/key}

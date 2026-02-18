@@ -131,7 +131,7 @@
 </script>
 
 {#if selectedDate}
-  <CalendarEventOverlay {events} {eventsMap} {colors} {brightColors} {selectedDate} {selectedDateClean} {yearMonth} {setStatus} getEvents={() => getEvents()} secondsToHoursMinutes={secondsToHoursMinutes} setSelectedDate={setSelectedDate}/>
+  <CalendarEventOverlay {events} {eventsMap} {colors} {brightColors} {selectedDate} {selectedDateClean} {yearMonth} {setStatus} getEvents={() => getEvents()} secondsToHoursMinutes={secondsToHoursMinutes} setSelectedDate={setSelectedDate} />
 {/if}
 
 <div id="calendarView">
@@ -196,7 +196,7 @@
     display: flex;
     flex-direction: column;
     flex: 1 1 0;
-    height: calc(100vh - 156px);
+    height: calc(100vh - 84px);
     background: transparent;
     padding: 12px;
   }

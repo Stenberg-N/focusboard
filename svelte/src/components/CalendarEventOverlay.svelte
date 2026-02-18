@@ -4,6 +4,7 @@
   import { fly } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
   import VirtualList from '@sveltejs/svelte-virtual-list';
+  import { getContext } from 'svelte';
 
   import type { CalendarEvent, CalendarEventWithLane } from "../types/types";
 
@@ -55,6 +56,7 @@
   let height = $state<number>(0);
   let maxLanes = $state<number>(0);
   const TOTAL_SECONDS = 86400;
+  const setDeleteEventId = getContext<(id: number | null) => void>('setDeleteEventId');
 
   $effect(() => {
     if (selectedEvent !== null) {
@@ -140,6 +142,7 @@
       }
 
       deleteEventId = null;
+      setDeleteEventId(null)
       setStatus(`Deleted event ${selectedEvent?.event_name} successfully`);
     } catch (error) {
       console.log("Error deleting event:", error);
@@ -208,7 +211,7 @@
       <div style="display: flex; flex: 1; bottom-border: 1px solid #444;"></div>
       <div id="deleteNotificationButtons">
         <button onclick={() => { if (deleteEventId) deleteEvent(deleteEventId); }}>Confirm</button>
-        <button onclick={() => { deleteEventId = null; }}>Cancel</button>
+        <button onclick={() => { deleteEventId = null; setDeleteEventId(null); }}>Cancel</button>
       </div>
     </div>
   </div>
@@ -330,7 +333,7 @@
           <div class="spacer"></div>
           <div class="listedEventControls">
             <button onclick={() => { startEdit(item); }}>Edit</button>
-            <button onclick={() => { deleteEventId = item.id; }}>Delete</button>
+            <button onclick={() => { deleteEventId = item.id; setDeleteEventId(item.id); }}>Delete</button>
           </div>
         </div>
       </VirtualList>
