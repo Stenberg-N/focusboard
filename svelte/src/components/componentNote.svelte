@@ -17,7 +17,7 @@
   import 'overlayscrollbars/overlayscrollbars.css';
   import '../routes/app.css';
 
-  const { setDeleteNoteId } = getContext<{ getDeleteNoteId: () => number | null, setDeleteNoteId: (id: number | null) => void}>('deleteNoteContext');
+  const { setDeleteNoteId } = getContext<{ getDeleteNoteId: () => number | null, setDeleteNoteId: (id: number | null) => void }>('deleteNoteContext');
 
   let {
     note,

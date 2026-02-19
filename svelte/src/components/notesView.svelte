@@ -18,24 +18,26 @@
   import '../routes/app.css';
   import 'overlayscrollbars/overlayscrollbars.css';
 
-  const deleteNoteContext = getContext<{ getDeleteNoteId: () => number | null, setDeleteNoteId: (id: number | null) => void}>('deleteNoteContext');
+  const deleteNoteContext = getContext<{ getDeleteNoteId: () => number | null, setDeleteNoteId: (id: number | null) => void }>('deleteNoteContext');
 
   let {
-    store,
     currentTabId,
     setCurrentTabId,
     currentTabName,
     setCurrentTabName,
     noteOpenStates,
     setStatus,
+    setStore,
+    store,
   }: {
-    store: Store | undefined;
     currentTabId: number | null;
     setCurrentTabId: (id: number | null) => void;
     currentTabName: string | null;
     setCurrentTabName: (name: string | null) => void;
     noteOpenStates: Record<number, boolean>;
     setStatus: (msg: string) => void;
+    setStore: (s: Store) => void;
+    store: Store | null;
   } = $props();
 
   let notes = $state<Note[]>([]);
@@ -64,13 +66,11 @@
   let searchable = $state<string | null>(null);
   let isSearching = $state<boolean>(false);
 
-  let flipDurationMs = $state<number>(0);
+  const flipDurationMs = 200;
 
   onMount(() => {
     void (async () => {
       store = await load('ui-state.json');
-
-      flipDurationMs = 200;
 
       await loadTabs();
       if (tabs.length === 0) {
@@ -80,11 +80,11 @@
         setCurrentTabName(newTab.name);
         setStatus("No prior tabs found. Creating tab");
       }
-      setStatus(`Loaded tabs successfully. Loaded the last tab you left on: ${currentTabName}`);
+      setStatus(`Tabs loaded successfully. Loaded the last tab you left on: ${currentTabName}`);
 
       const savedTabId = await store.get<number>('currentTabId') ?? null;
       const savedTabName = await store.get<string>('currentTabName') ?? null;
-      const savedOpenStates = await store.get<Record<number, boolean>>('noteOpenStates');
+      const savedOpenStates = await store.get<Record<number, boolean>>('noteOpenStates') ?? {};
 
       if (savedTabId !== null && savedTabName !== null && tabs.some(t => t.id === savedTabId && t.name === savedTabName)) {
         try {
@@ -118,6 +118,7 @@
         store.set('currentTabId', currentTabId);
         store.set('currentTabName', currentTabName);
         store.save();
+        setStore(store);
       } catch (error) {
         console.error("Failed to update the store with the currently selected tab's ID and name:", error);
         setStatus(`Failed to update the store with the currently selected tab's ID and name: ${error}`);
@@ -132,6 +133,7 @@
       try {
         await store.set('noteOpenStates', noteOpenStates);
         await store.save();
+        setStore(store);
       } catch (error) {
         console.error("Failed to save note state change:", error);
         setStatus(`Failed to save note state change: ${error}`);
@@ -171,7 +173,7 @@
       const data = await invoke<Note[]>('get_notes', { tabId: tabId });
       currentTabNotes = data;
 
-      setStatus(`Loaded notes on tab ${currentTabName} successfully`);
+      setStatus(`Notes loaded on tab ${currentTabName} successfully`);
     } catch (error) {
       console.error("get_notes failed:", error);
       setStatus(`Failed to load notes: ${error}`);

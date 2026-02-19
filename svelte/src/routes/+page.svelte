@@ -15,14 +15,14 @@
   import 'overlayscrollbars/overlayscrollbars.css';
 
   setContext('setDeleteEventId', setDeleteEventId);
-  setContext('deleteNoteContext', { getDeleteNoteId: () => deleteNoteId, setDeleteNoteId});
+  setContext('deleteNoteContext', { getDeleteNoteId: () => deleteNoteId, setDeleteNoteId });
 
   let uiVisibility = $state({ runningTimer: true, });
   let noteOpenStates = $state<Record<number, boolean>>({});
   let currentTabId = $state<number | null>(null);
   let currentTabName = $state<string | null>(null);
 
-  let store = $state<Store>();
+  let store = $state<Store | null>(null);
   let currentView = $state<'timerView' | 'calendarView' | 'notesView' | 'Home'>('Home');
   let statusBar = $state<HTMLSpanElement>()!;
   let deleteNoteId = $state<number | null>(null);
@@ -49,8 +49,8 @@
   listen('app-closing', async () => {
     if (store) {
       store.set('currentTabId', currentTabId);
-      store.set('noteOpenStates', noteOpenStates);
       store.set('currentTabName', currentTabName);
+      store.set('noteOpenStates', noteOpenStates);
       store.save();
     }
     showOverlay = true;
@@ -112,6 +112,10 @@
     deleteEventId = id;
   }
 
+  function setStore(s: Store) {
+    store = s;
+  }
+
 </script>
 
 <main class="container">
@@ -135,7 +139,7 @@
 
   <div style="position: fixed; inset: 0; overflow: hidden;">
     <div id="navigationBar">
-      <button class:selected={currentView === 'Home'} onclick={() => currentView = 'Home'}>Home</button>
+      <button class:selected={currentView === 'Home'} onclick={() => { currentView = 'Home'; statusBar.textContent = "Home loaded successfully" }}>Home</button>
       <button id="noteViewBtn" class:selected={currentView === 'notesView'} onclick={() => currentView = 'notesView'}>
         <img id="noteIcon" src="note.svg" alt="noteIcon">
       </button>
@@ -153,7 +157,7 @@
       {:else if currentView === 'calendarView'}
         <CalendarView setStatus={(msg) => (statusBar.textContent = msg)} />
       {:else if currentView === 'notesView'}
-        <NotesView {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} {noteOpenStates} setStatus={(msg) => (statusBar.textContent = msg)} />
+        <NotesView setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} {noteOpenStates} setStatus={(msg) => (statusBar.textContent = msg)} />
       {:else}
         <div>Home</div>
       {/if}

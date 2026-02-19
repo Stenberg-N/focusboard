@@ -44,7 +44,7 @@
       remainingSeconds = timer.duration;
       timerMessage = timer.message;
 
-      setStatus("Fetched timer successfully");
+      setStatus("Timer loaded successfully");
 
     } catch (error) {
       console.error("Failed to load timer:", error);
