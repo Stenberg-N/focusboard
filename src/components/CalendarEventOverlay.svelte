@@ -525,7 +525,6 @@
     margin: 0;
     font-weight: 800;
     font-size: 14px;
-    pointer-events: none;
   }
 
   .eventName {

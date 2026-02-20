@@ -68,6 +68,7 @@
   height: 100%;
   width: 100%;
   gap: 10px;
+  z-index: 1;
 }
 
 #timesContainer {
@@ -87,6 +88,7 @@
   border: 0;
   padding: 0;
   transition: right 0.4s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+  z-index: 2;
 }
 
 #runningTimerContainer button.closed {
@@ -101,6 +103,7 @@
   height: 100%;
   filter: brightness(1) invert(0.7);
   transition: rotate 0.2s, transform 0.2s;
+  z-index: 2;
 }
 
 #runningTimerArrow.pointleft {
@@ -123,6 +126,7 @@
   align-items: center;
   background: #222;
   border-radius: 8px;
+  pointer-events: none;
 }
 
 #runningDisplayMinutes p, #runningDisplaySeconds p {
