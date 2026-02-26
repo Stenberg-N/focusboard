@@ -321,7 +321,7 @@
     </div>
 
     <div id="eventsList">
-      <VirtualList items={eventsMap.get(selectedDate!)} let:item>
+      <VirtualList items={eventsMap.get(selectedDate!) || []} let:item>
         <div class="listedEvent">
           <div class="listedEventInfo" style="background: {item.color}; color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">
             <div class="eventName">
