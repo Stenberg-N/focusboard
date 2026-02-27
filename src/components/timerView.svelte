@@ -195,28 +195,28 @@
     <p id="editingMessage">In edit mode</p>
   {/if}
   <div id="timerCircle">
-    <div id="controlsContainer">
-      {#if isEditing}
-        <div class="timerControls">
-          <button class="timerButton" onclick={setTimer}>Save</button>
-          <button class="timerButton" onclick={increase}>
-            <img id="timeUp-icon" src="up-arrow.svg" alt="upArrow">
-          </button>
-          <button class="timerButton" onclick={decrease}>
-            <img id="timeDown-icon" src="down-arrow.svg" alt="downArrow">
-          </button>
-          <button class="timerButton" onclick={cancelEdit}>Cancel</button>
-        </div>
-      {:else}
-        <div class="timerControls">
-          <button class="timerButton" onclick={startEdit} disabled={isRunning}>Edit</button>
-          <button class="timerButton" onclick={startTimer} disabled={isRunning || remainingSeconds <= 0}>Start</button>
-          <button class="timerButton" onclick={() => {stopTimer(); updateDurationWithRemaining(); }} disabled={!isRunning}>Stop</button>
-          <button class="timerButton" onclick={resetTimer}>Reset</button>
-        </div>
-      {/if}
-    </div>
     <div id="contentArea" role="none" onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); } else if (e.key === 'Enter') { e.preventDefault(); setTimer(); } }}>
+      <div id="controlsContainer">
+        {#if isEditing}
+          <div class="timerControls">
+            <button class="timerButton" onclick={setTimer}>Save</button>
+            <button class="timerButton" onclick={increase}>
+              <img id="timeUp-icon" src="up-arrow.svg" alt="upArrow">
+            </button>
+            <button class="timerButton" onclick={decrease}>
+              <img id="timeDown-icon" src="down-arrow.svg" alt="downArrow">
+            </button>
+            <button class="timerButton" onclick={cancelEdit}>Cancel</button>
+          </div>
+        {:else}
+          <div class="timerControls">
+            <button class="timerButton" onclick={startEdit} disabled={isRunning}>Edit</button>
+            <button class="timerButton" onclick={startTimer} disabled={isRunning || remainingSeconds <= 0}>Start</button>
+            <button class="timerButton" onclick={() => {stopTimer(); updateDurationWithRemaining(); }} disabled={!isRunning}>Stop</button>
+            <button class="timerButton" onclick={resetTimer}>Reset</button>
+          </div>
+        {/if}
+      </div>
       <div id="timeValues">
         {#if isEditing}
           <input type="number" bind:value={editingMinutes} bind:this={minutesInput} min="0" onclick={() => setSelectedInput('minutes')} />
@@ -247,12 +247,13 @@
 
 #editingMessage {
   position: fixed;
-  top: 80px;
+  bottom: 40px;
   margin: 0;
   display: flex;
   align-self: center;
   font-weight: 600;
   animation: pulseOpacity 2s ease-in-out infinite;
+  pointer-events: none;
 }
 
 #timer {
@@ -353,8 +354,11 @@
   display: flex;
   flex: 1 1 0;
   flex-direction: row;
+  align-self: center;
   justify-content: center;
   max-height: 390px;
+  max-width: 500px;
+  width: 100%;
   padding: 20px;
   gap: 20px;
   border-radius: 8px;
@@ -365,7 +369,7 @@
   flex: 1 1 0;
   text-align: center;
   align-content: center;
-  max-width: 200px;
+  max-width: 220px;
   max-height: 350px;
   font-size: 150px;
   background: #222;

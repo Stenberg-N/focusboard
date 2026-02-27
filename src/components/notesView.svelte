@@ -545,7 +545,7 @@
 {/if}
 
 <div id="notesView" style="height: 100%; width: 100%;">
-  <div style="display: flex; flex-direction: row; height: 70px; margin-left: 10px;">
+  <div style="display: flex; flex-direction: row; height: 70px; margin-left: 10px; position: fixed; z-index: 1; left: 85px; right: 0; background-color: rgba(15,15,15,0.8); backdrop-filter: blur(20px);">
     <h2>Notes</h2>
     <div id="notesMenuBarControls">
       <select bind:value={noteType}>
@@ -577,47 +577,45 @@
   </div>
 
   <div id="middle" class:enlarged={!tabBarIsOpen}>
-    <div id="noteContainer" class:enlarged={!tabBarIsOpen}>
-      <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-        <div id="innerNoteContainer" use:dragHandleZone={{
-          items: previewNotes ?? topLevelNotes,
-          type: 'top-level-note',
-          flipDurationMs: flipDurationMs,
-          dropTargetStyle: {},
-          transformDraggedElement: transformElement,
-          morphDisabled: true,
-          centreDraggedOnCursor: true }}
-          onconsider={handleDndNote}
-          onfinalize={handleDndFinalizeNote}
-        >
-          {#if foundNotes!.length > 0}
-            {#each foundNotes as note (note.id)}
-              <div style="display: flex; flex: 1 1 0;">
-                <ComponentNote
-                  {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
-                  reloadNotes={() => loadNotes(currentTabId)}
-                ></ComponentNote>
-              </div>
-            {/each}
+    <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark custom'}, overflow: { x: "hidden" } }}>
+      <div id="innerNoteContainer" use:dragHandleZone={{
+        items: previewNotes ?? topLevelNotes,
+        type: 'top-level-note',
+        flipDurationMs: flipDurationMs,
+        dropTargetStyle: {},
+        transformDraggedElement: transformElement,
+        morphDisabled: true,
+        centreDraggedOnCursor: true }}
+        onconsider={handleDndNote}
+        onfinalize={handleDndFinalizeNote}
+      >
+        {#if foundNotes!.length > 0}
+          {#each foundNotes as note (note.id)}
+            <div style="display: flex; flex: 1 1 0;">
+              <ComponentNote
+                {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
+                reloadNotes={() => loadNotes(currentTabId)}
+              ></ComponentNote>
+            </div>
+          {/each}
+        {:else}
+          {#if currentTabId}
+            {#key topLevelNotes.map(n => n.id).join('-')}
+              {#each (previewNotes ?? topLevelNotes) as note (note.id)}
+                <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
+                  <ComponentNote
+                    {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
+                    reloadNotes={() => loadNotes(currentTabId)}
+                  ></ComponentNote>
+                </div>
+              {/each}
+            {/key}
           {:else}
-            {#if currentTabId}
-              {#key topLevelNotes.map(n => n.id).join('-')}
-                {#each (previewNotes ?? topLevelNotes) as note (note.id)}
-                  <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
-                    <ComponentNote
-                      {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
-                      reloadNotes={() => loadNotes(currentTabId)}
-                    ></ComponentNote>
-                  </div>
-                {/each}
-              {/key}
-            {:else}
-              <p>No tabs available.</p>
-            {/if}
+            <p>No tabs available.</p>
           {/if}
-        </div>
-      </OverlayScrollbarsComponent>
-    </div>
+        {/if}
+      </div>
+    </OverlayScrollbarsComponent>
   </div>
 
   {#if tabBarIsOpen}
@@ -687,6 +685,10 @@
     --os-handle-bg-hover: #ccc;
     --os-handle-bg-active: #ccc;
     --os-track-bg: #444;
+  }
+  .os-theme-dark.custom .os-scrollbar-track {
+    margin-top: 70px;
+    height: calc(100% - 70px);
   }
 }
 

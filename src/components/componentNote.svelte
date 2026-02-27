@@ -1,6 +1,5 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import { slide } from 'svelte/transition';
   import { flip } from 'svelte/animate';
   import ComponentNote from './componentNote.svelte';
@@ -479,53 +478,51 @@
     {/if}
   </div>
 
-  <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-    <div id="noteContentOuter">
-      {#if collapseOpen}
-        <div style="overflow: hidden;" transition:slide={{ delay: 100, duration: 400, easing: cubicInOut }}>
-          {#if isEditing}
-            {#if !isCategory}
-              {#if editor}
-                <EditorContent
-                  editor={editor}
-                  class="noteContentEditable"
-                />
-              {/if}
-              <div class="noteControls" style="margin-top: 10px;">
-                <button id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
-                <button id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
-              </div>
-              <div class="infoText">
-                <small>Press Esc to cancel | Press Enter or click outside to save</small>
-              </div>
+  <div id="noteContentOuter">
+    {#if collapseOpen}
+      <div style="overflow: hidden;" transition:slide={{ delay: 100, duration: 400, easing: cubicInOut }}>
+        {#if isEditing}
+          {#if !isCategory}
+            {#if editor}
+              <EditorContent
+                editor={editor}
+                class="noteContentEditable"
+              />
             {/if}
-          {:else}
-            {#if !isCategory}
-              <p class="noteContent" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{@html note.content || 'No content'}</p>
-            {:else if isCategory}
-              <div class="subNotes" use:dragHandleZone={{
-                items: previewChildNotes ?? childNotes,
-                type: `child-note`,
-                flipDurationMs: flipDurationMs,
-                dropTargetStyle: {border: '1px solid #ccc'},
-                transformDraggedElement: transformElement,
-                morphDisabled: true,
-                centreDraggedOnCursor: true }}
-                onconsider={handleDnd}
-                onfinalize={handleDndFinalize}
-              >
-                {#key childNotes.map(n => n.id).join('-')}
-                  {#each (previewChildNotes ?? childNotes) as child (child.id)}
-                    <div animate:flip={{ duration: flipDurationMs }} data-is-dnd-shadow-item-hint={(child as any)[SHADOW_ITEM_MARKER_PROPERTY_NAME] ?? false}>
-                      <ComponentNote note={child} {reloadNotes} {setStatus} {currentTabNotes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} />
-                    </div>
-                  {/each}
-                {/key}
-              </div>
-            {/if}
+            <div class="noteControls" style="margin-top: 10px;">
+              <button id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
+              <button id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
+            </div>
+            <div class="infoText">
+              <small>Press Esc to cancel | Press Enter or click outside to save</small>
+            </div>
           {/if}
-        </div>
-      {/if}
-    </div>
-  </OverlayScrollbarsComponent>
+        {:else}
+          {#if !isCategory}
+            <p class="noteContent" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{@html note.content || 'No content'}</p>
+          {:else if isCategory}
+            <div class="subNotes" use:dragHandleZone={{
+              items: previewChildNotes ?? childNotes,
+              type: `child-note`,
+              flipDurationMs: flipDurationMs,
+              dropTargetStyle: {border: '1px solid #ccc'},
+              transformDraggedElement: transformElement,
+              morphDisabled: true,
+              centreDraggedOnCursor: true }}
+              onconsider={handleDnd}
+              onfinalize={handleDndFinalize}
+            >
+              {#key childNotes.map(n => n.id).join('-')}
+                {#each (previewChildNotes ?? childNotes) as child (child.id)}
+                  <div animate:flip={{ duration: flipDurationMs }} data-is-dnd-shadow-item-hint={(child as any)[SHADOW_ITEM_MARKER_PROPERTY_NAME] ?? false}>
+                    <ComponentNote note={child} {reloadNotes} {setStatus} {currentTabNotes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} />
+                  </div>
+                {/each}
+              {/key}
+            </div>
+          {/if}
+        {/if}
+      </div>
+    {/if}
+  </div>
 </div>
