@@ -15,7 +15,7 @@
   import ComponentNote from '../components/componentNote.svelte';
 
   import type { Note, Tab } from '../types/types';
-  import '../routes/app.css';
+  import '../routes/style.css';
   import 'overlayscrollbars/overlayscrollbars.css';
 
   const deleteNoteContext = getContext<{ getDeleteNoteId: () => number | null, setDeleteNoteId: (id: number | null) => void }>('deleteNoteContext');
@@ -29,6 +29,8 @@
     setStatus,
     setStore,
     store,
+    tabBarIsOpen = true,
+    setTabBarState,
   }: {
     currentTabId: number | null;
     setCurrentTabId: (id: number | null) => void;
@@ -38,6 +40,8 @@
     setStatus: (msg: string) => void;
     setStore: (s: Store) => void;
     store: Store | null;
+    tabBarIsOpen: boolean;
+    setTabBarState: (state: boolean) => void;
   } = $props();
 
   let notes = $state<Note[]>([]);
@@ -478,10 +482,9 @@
     setStatus("Search closed");
   }
 
-  let tabBarIsOpen = $derived(uiVisibility.tabBar);
-
   function tabBarToggle() {
-    uiVisibility.tabBar = !uiVisibility.tabBar;
+    tabBarIsOpen = !tabBarIsOpen;
+    setTabBarState(tabBarIsOpen);
   }
 
   function zoomNote(id: number) {
@@ -515,16 +518,16 @@
 </script>
 
 {#if deleteNoteId}
-  <div id="deleteNotificationContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
-    <div id="deleteNotificationContent">
-      <div id="deleteNotificationMessage">
+  <div class="notificationContainer" class:enlarged={!tabBarIsOpen} transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+    <div class="notificationContent">
+      <div>
         <p>Are you sure you want to delete this note?</p>
         <p><strong>{stripHtml(currentTabNotes.find(n => n.id == deleteNoteId)?.title)}</strong></p>
       </div>
-      <div class="mainViewTimerSpacer"></div>
-      <div id="deleteNotificationButtons">
-        <button onclick={confirmDeleteNote}>Confirm</button>
-        <button onclick={()=> deleteNoteContext.setDeleteNoteId(null)}>Cancel</button>
+      <div class="spacer" style="border-bottom: 1px solid #444;"></div>
+      <div class="notificationButtonContainer">
+        <button class="primary-button" onclick={confirmDeleteNote}>Confirm</button>
+        <button class="primary-button" onclick={()=> deleteNoteContext.setDeleteNoteId(null)}>Cancel</button>
       </div>
     </div>
   </div>
@@ -534,7 +537,7 @@
   <div role="button" tabindex="0" class="zoomedNoteOverlay" transition:fly={{ y: -100, duration: 200, easing: cubicInOut }} onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeZoom(); }}}>
     <div class="zoomedNoteContent">
       <p class="warnMessage">The close button does not save any changes made to the note. Hitting Escape will close the note without saving. Please remember to save the changes in the note edit mode before exiting the zoom.</p>
-      <button class="zoomedNoteCloseBtn" onclick={closeZoom}>Close without saving</button>
+      <button id="zoomedNoteCloseBtn" class="primary-button" onclick={closeZoom}>Close without saving</button>
       <ComponentNote
         note={currentTabNotes.find(n => n.id === zoomedNoteId)!}
         {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
@@ -545,19 +548,19 @@
 {/if}
 
 <div id="notesView" style="height: 100%; width: 100%;">
-  <div style="display: flex; flex-direction: row; height: 70px; margin-left: 10px; position: fixed; z-index: 1; left: 85px; right: 0; background-color: rgba(15,15,15,0.8); backdrop-filter: blur(20px);">
+  <div id="menuBar">
     <h2>Notes</h2>
     <div id="notesMenuBarControls">
       <select bind:value={noteType}>
         <option value="basic">Basic</option>
         <option value="categorical">Categorical</option>
       </select>
-      <button onclick={addNote} disabled={!currentTabId}>Create Note</button>
-      <button onclick={openLogs}>Open logs</button>
-      <button onclick={backupDatabase}>Backup Database</button>
+      <button class="primary-button" onclick={addNote} disabled={!currentTabId}>Create Note</button>
+      <button class="primary-button" onclick={openLogs}>Open logs</button>
+      <button class="primary-button" onclick={backupDatabase}>Backup Database</button>
     </div>
     <div id="searchBarContainer">
-      <button id="searchBarBtn" onclick={searchNotes}>
+      <button id="searchBarBtn" class="primary-button" onclick={searchNotes}>
         <img id="searchIcon" src="search.svg" alt="searchIcon">
       </button>
       <div id="searchBarInputContainer">
@@ -569,7 +572,7 @@
         {/if}
       </div>
       {#if foundNotes!.length > 0}
-        <button transition:fly={{ y: -100, duration: 200, easing: cubicInOut }} id="searchBarCloseBtn" onclick={closeNotesSearch}>
+        <button id="searchBarCloseBtn" class="primary-button" transition:fly={{ y: -100, duration: 200, easing: cubicInOut }} onclick={closeNotesSearch}>
           <img id="closeIcon" src="close.svg" alt="CloseIcon">
         </button>
       {/if}
@@ -620,7 +623,7 @@
 
   {#if tabBarIsOpen}
     <div id="tabBar" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }} style="z-index: 1;">
-      <button id="buttonAddTab" onclick={addTab}>Add Tab</button>
+      <button id="buttonAddTab" class="primary-button" onclick={addTab}>Add Tab</button>
       <div id="tabList" use:dndzone={{
         items: previewTabs ?? tabs,
         type: 'tabs',
@@ -679,13 +682,362 @@
 
 <style>
 
+#menuBar {
+  position: fixed;
+  z-index: 1;
+  left: 85px;
+  right: 0;
+  display: flex; 
+  flex-direction: row;
+  height: 70px;
+  margin-left: 10px;
+  background-color: rgba(15,15,15,0.8);
+  backdrop-filter: blur(20px);
+}
+
+#menuBar h2 {
+  width: 70px;
+  margin-left: 15px;
+  text-align: left;
+}
+
+#notesMenuBarControls {
+  display: flex;
+  flex: 1 1 0;
+  max-width: 425px;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+}
+
+#notesMenuBarControls select {
+  background-color: #222;
+  color: #f6f6f6;
+  height: 40px;
+  max-width: 100px;
+  width: 100%;
+  outline: 0;
+  border: 0;
+  border-radius: 8px;
+  margin-left: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+  transition: box-shadow 0.2s;
+}
+
+#notesMenuBarControls select:hover {
+  background-color: #333;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
+}
+
+#notesMenuBarControls select option {
+  background-color: #222;
+}
+
+#searchBarContainer {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: left;
+  margin: 0 50px;
+}
+
+#searchBarBtn, #searchBarCloseBtn {
+  width: 60px;
+  height: 40px;
+  background-color: #222;
+  border-radius: 20px 0 0 20px;
+  border: 1px solid #444;
+  border-right: none;
+}
+
+#searchIcon {
+  width: 25px;
+  height: 25px;
+  filter: brightness(0) invert(0.7);
+  user-select: none;
+}
+
+#searchBarCloseBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-left: 10px;
+}
+
+#closeIcon {
+  height: 18px;
+  width: 18px;
+  filter: brightness(0) invert(0.7);
+  user-select: none;
+}
+
+#searchBarInputContainer {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 0;
+  align-items: center;
+  background-color: #222;
+  max-width: 500px;
+  width: 100%;
+  height: 40px;
+  border: 1px solid #444;
+  border-radius: 0 20px 20px 0;
+  outline: none;
+}
+
+#searchBarInputContainer button, input {
+  background-color: transparent;
+  border: 0;
+  outline: 0;
+}
+
+#searchBarInputContainer button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 10px;
+  width: 10px;
+  margin: 0 20px;
+  padding: 0;
+}
+
+#clearSearchIcon {
+  height: 10px;
+  width: 10px;
+  filter: brightness(0) invert(0.7);
+  user-select: none;
+}
+
+#clearSearchIcon:hover {
+  filter: brightness(0) invert(0.9);
+}
+
+#searchBarInputContainer input {
+  width: 100%;
+  height: 100%;
+  padding-left: 10px;
+  color: #f6f6f6;
+  font-size: 18px;
+  border-radius: 0 20px 20px 0;
+}
+
+#searchBarInputContainer input:focus {
+  border: 1px solid #723fffd0;
+}
+
+#searchBarBtn:hover, #searchBarCloseBtn:hover {
+  cursor: pointer;
+  background-color: #333;
+  transform: unset;
+}
+
+#searchBarCloseBtn:hover {
+  transform: translateY(-4px);
+}
+
+#middle {
+  position: fixed;
+  top: 0px;
+  bottom: 50px;
+  left: 85px;
+  right: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  transition: bottom 200ms cubic-bezier(0.645, 0.045, 0.355, 1.000);
+  transition-delay: 100ms;
+}
+
+.notificationContainer {
+  bottom: 55px;
+}
+
+.notificationContainer.enlarged {
+  bottom: 25px;
+}
+
+#middle.enlarged {
+  bottom: 20px;
+}
+
+#innerNoteContainer {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  flex: 1 1 0;
+  min-height: 0;
+  gap: 10px;
+  width: calc(100vw - 85px);
+  padding: 10px;
+  padding-top: 80px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#tabBar {
+  position: fixed;
+  bottom: 20px;
+  left: 85px;
+  right: 0;
+  display: flex;
+  flex-direction: row;
+  justify-content: left;
+  width: 100%;
+  height: 30px;
+  gap: 20px;
+  border-top: 1px solid #444;
+}
+
+#toggleTabBar {
+  position: fixed;
+  bottom: 20px;
+  left: 0;
+  width: 85px;
+  height: 30px;
+  background-color: transparent;
+  border: 0;
+  padding: 0;
+  transition: transform 0.2s, bottom 200ms cubic-bezier(0.645, 0.045, 0.355, 1.000);
+  transition-delay: 100ms;
+}
+
+#toggleTabBar:hover {
+  background-color: #333;
+  cursor: pointer;
+}
+
+#buttonAddTab {
+  width: 70px;
+  font-size: 12px;
+  border-radius: 0 6px 6px 0;
+  max-height: 24.5px;
+  height: 100%;
+  align-self: center;
+  margin-left: 1px;
+  box-shadow: unset;
+  transform: unset;
+}
+
+#buttonAddTab:hover {
+  transform: unset;
+  box-shadow: unset;
+}
+
+#tabList {
+  display: flex;
+  margin: 0;
+  gap: 5px;
+  width: 100%;
+  align-items: center;
+}
+
+.tab {
+  text-align: left;
+  direction: ltr;
+  min-width: 10px;
+  padding: 5px;
+  color: #f6f6f6;
+  text-align: center;
+  background-color: #222;
+  border: none;
+  border-radius: 6px;
+  max-height: 24.5px;
+  height: 100%;
+  transition: transform 0.2s;
+}
+
+.tab:hover {
+  background-color: #333;
+  transform: translateY(-2px);
+}
+
+.tab.selected {
+  outline: 1px solid #723fffd0;
+}
+
+.tab.editing {
+  padding: 0;
+}
+
+.tab input {
+  max-width: 120px;
+  width: 100%;
+  background-color: transparent;
+  color: #f6f6f6;
+  border: none;
+  outline: none;
+  padding-left: 5px;
+}
+
+.zoomedNoteOverlay {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  z-index: 10000;
+  top: 0;
+  left: 0;
+  bottom: 20px;
+  width: 100vw;
+  height: 100vh - 20px;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(15px);
+}
+
+.zoomedNoteContent {
+  position: relative;
+  inset: 0;
+  width: 50%;
+  height: 80%;
+  margin: auto;
+  overflow: auto;
+}
+
+.zoomedNoteContent .warnMessage {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-self: center;
+  max-height: 24px;
+  font-size: 14px;
+  margin: 0;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #723fffd0;
+  border-radius: 8px;
+}
+
+#zoomedNoteCloseBtn {
+  justify-self: center;
+  margin: 5px 0 20px;
+  max-width: unset;
+  width: 140px;
+  max-height: unset;
+  height: 45px;
+  border-radius: 6px;
+}
+
+.arrowUp-icon, .arrowDown-icon {
+  display: flex;
+  justify-self: center;
+  height: 19px;
+  width: 40px;
+  filter: brightness(0) invert(0.7);
+  transition: transform 0.2s;
+  user-select: none;
+}
+
+.arrowUp-icon:hover, .arrowDown-icon:hover {
+  transform: scale(1.1) translateY(-1px);
+}
+
 :global {
-  .os-theme-dark {
-    --os-handle-bg: #888;
-    --os-handle-bg-hover: #ccc;
-    --os-handle-bg-active: #ccc;
-    --os-track-bg: #444;
-  }
   .os-theme-dark.custom .os-scrollbar-track {
     margin-top: 70px;
     height: calc(100% - 70px);

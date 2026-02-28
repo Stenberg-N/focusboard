@@ -11,7 +11,7 @@
   import TimerView from '../components/timerView.svelte';
   import CalendarView from '../components/calendarView.svelte';
 
-  import './app.css';
+  import './style.css';
   import 'overlayscrollbars/overlayscrollbars.css';
 
   setContext('setDeleteEventId', setDeleteEventId);
@@ -21,6 +21,7 @@
   let noteOpenStates = $state<Record<number, boolean>>({});
   let currentTabId = $state<number | null>(null);
   let currentTabName = $state<string | null>(null);
+  let tabBarIsOpen = $state<boolean>(true);
 
   let store = $state<Store | null>(null);
   let currentView = $state<'timerView' | 'calendarView' | 'notesView' | 'Home'>('Home');
@@ -58,8 +59,10 @@
 
   $effect(() => {
     if (currentView === 'notesView') {
-      if (deleteNoteId) timerNotifBottom = 210;
-      else timerNotifBottom = 55;
+      if (deleteNoteId && tabBarIsOpen) timerNotifBottom = 210;
+      else if (deleteNoteId) timerNotifBottom = 180;
+      else if (tabBarIsOpen) timerNotifBottom = 55;
+      else timerNotifBottom = 25;
     } else {
       if (deleteEventId) timerNotifBottom = 180;
       else timerNotifBottom = 25;
@@ -116,6 +119,10 @@
     store = s;
   }
 
+  function setTabBarState(state: boolean) {
+    tabBarIsOpen = state;
+  }
+
 </script>
 
 <main class="container">
@@ -124,40 +131,42 @@
   {/if}
 
   {#if isRunningTimerFinished}
-    <div id="mainViewTimerFinishedContainer" style="bottom: {timerNotifBottom}px;" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
-      <div id="mainViewTimerNotificationContainer">
+    <div class="notificationContainer" style="bottom: {timerNotifBottom}px;" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+      <div class="notificationContent">
         <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-          <div id="mainViewTimerMessageContainer">
+          <div style="padding-right: 10px;">
             <p>{setTimerMessage || 'Timer complete!'}</p>
           </div>
         </OverlayScrollbarsComponent>
-        <div class="mainViewTimerSpacer"></div>
-        <button onclick={() => isRunningTimerFinished = false}>OK</button>
+        <div class="spacer" style="border-bottom: 1px solid #444;"></div>
+        <div class="notificationButtonContainer">
+          <button class="primary-button" onclick={() => isRunningTimerFinished = false}>OK</button>
+        </div>
       </div>
     </div>
   {/if}
 
   <div style="position: fixed; inset: 0; overflow: hidden;">
     <div id="navigationBar">
-      <button class:selected={currentView === 'Home'} onclick={() => { currentView = 'Home'; statusBar.textContent = "Home loaded successfully" }}>Home</button>
-      <button id="noteViewBtn" class:selected={currentView === 'notesView'} onclick={() => currentView = 'notesView'}>
+      <button class="primary-button" class:selected={currentView === 'Home'} onclick={() => { currentView = 'Home'; statusBar.textContent = "Home loaded successfully" }}>Home</button>
+      <button class="primary-button" id="noteViewBtn" class:selected={currentView === 'notesView'} onclick={() => currentView = 'notesView'}>
         <img id="noteIcon" src="note.svg" alt="noteIcon">
       </button>
-      <button id="timerViewBtn" class:selected={currentView === 'timerView'} onclick={() => currentView = 'timerView'}>
+      <button class="primary-button" id="timerViewBtn" class:selected={currentView === 'timerView'} onclick={() => currentView = 'timerView'}>
         <img id="clockIcon" src="clock.svg" alt="clockIcon">
       </button>
-      <button id="calendarViewBtn" class:selected={currentView === 'calendarView'} onclick={() => currentView = 'calendarView'}>
+      <button class="primary-button" id="calendarViewBtn" class:selected={currentView === 'calendarView'} onclick={() => currentView = 'calendarView'}>
         <img id="calendarIcon" src="calendar.svg" alt="calendarIcon">
       </button>
     </div>
 
-    <div id="Content" style="position: fixed; bottom: 20px; left: 85px; width: calc(100vw - 85px); height: calc(100% - 20px); border-left: 1px solid #444; display: flex;">
+    <div id="Content">
       {#if currentView === 'timerView'}
         <TimerView setStatus={(msg) => (statusBar.textContent = msg)} />
       {:else if currentView === 'calendarView'}
         <CalendarView setStatus={(msg) => (statusBar.textContent = msg)} />
       {:else if currentView === 'notesView'}
-        <NotesView setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} {noteOpenStates} setStatus={(msg) => (statusBar.textContent = msg)} />
+        <NotesView tabBarIsOpen={tabBarIsOpen} setTabBarState={setTabBarState} setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} {noteOpenStates} setStatus={(msg) => (statusBar.textContent = msg)} />
       {:else}
         <div>Home</div>
       {/if}
@@ -186,6 +195,152 @@
 </main>
 
 <style>
+
+#navigationBar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  max-width: 85px;
+  width: 100%;
+  gap: 10px;
+  padding: 15px;
+}
+
+#navigationBar button {
+  max-width: 55px;
+  max-height: 55px;
+  padding: 0;
+}
+
+#navigationBar button.selected {
+  border: 1px solid #723fffd0;
+}
+
+#Content {
+  position: fixed;
+  bottom: 20px;
+  left: 85px;
+  display: flex;
+  width: calc(100vw - 85px);
+  height: calc(100% - 20px);
+  border-left: 1px solid #444;
+}
+
+#statusBar {
+  position: fixed;
+  display: flex;
+  flex-direction: row;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  justify-content: flex-start;
+  width: 100%;
+  height: 20px;
+  align-items: center;
+  padding: 2px 0 2px 10px;
+  font-size: 11px;
+  border-top: 1px solid #444;
+}
+
+#runningTimerContainer, #timesContainer {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: row;
+  justify-self: right;
+  justify-content: flex-end;
+  align-items: center;
+  max-width: 150px;
+  max-height: 70px;
+  height: 100%;
+  width: 100%;
+  gap: 10px;
+  z-index: 1;
+  user-select: none;
+}
+
+#timesContainer {
+  padding-right: 4px;
+}
+
+#runningTimerContainer button {
+  position: fixed;
+  right: 129px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 20px;
+  height: 70px;
+  width: 100%;
+  background-color: transparent;
+  border: 0;
+  padding: 0;
+  transition: right 0.4s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+  z-index: 2;
+}
+
+#runningTimerContainer button.closed {
+  right: 0px;
+  padding-right: 10px;
+}
+
+#runningTimerArrow {
+  rotate: -90deg;
+  max-width: 20px;
+  max-height: 20px;
+  height: 100%;
+  filter: brightness(1) invert(0.7);
+  transition: rotate 0.2s, transform 0.2s;
+  z-index: 2;
+}
+
+#runningTimerArrow.pointleft {
+  rotate: 90deg;
+}
+
+#runningTimerArrow:hover {
+  cursor: pointer;
+  transform: scale(1.2);
+}
+
+#runningDisplayMinutes, #runningDisplaySeconds {
+  display: flex;
+  flex: 1 1 0;
+  max-width: 50px;
+  width: 100%;
+  max-height: 62px;
+  height: 100%;
+  justify-content: center;
+  align-items: center;
+  background-color: #222;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+#runningDisplayMinutes p, #runningDisplaySeconds p {
+  margin: 0;
+  font-size: 24px;
+}
+
+#noteIcon, #clockIcon, #calendarIcon {
+  display: flex;
+  justify-self: center;
+  max-width: 40px;
+  width: 100%;
+  max-height: 40px;
+  height: 100%;
+}
+
+#noteIcon {
+  filter: saturate(0);
+}
+
+#clockIcon, #calendarIcon {
+  filter: brightness(0) invert(0.7);
+}
 
 :global {
   .os-theme-dark {

@@ -83,7 +83,7 @@
           <div class="gridlines"></div>
           {#each displayedEvents as event (event.id)}
             <button class="timelineEvent" style="position: absolute; left: {getLeft(event.event_start)}%; top: {event.lane * 60}px; width: {getWidth(event.event_start, event.event_end)}%;" onclick={() => { startEdit(event); }}>
-              <div class="listedEventInfo" style="background: {event.color}; color: {brightColors.some(c => c === event.color) ? 'black' : '#f6f6f6'}; height: 50px; align-items: center;">
+              <div class="listedEventInfo" style="background-color: {event.color}; color: {brightColors.some(c => c === event.color) ? 'black' : '#f6f6f6'}; height: 50px; align-items: center;">
                 <p>{secondsToHoursMinutes(event.event_start)}-{secondsToHoursMinutes(event.event_end)}</p>
               </div>
             </button>
@@ -106,7 +106,7 @@
     bottom: 0;
     width: calc(100% - 300px);
     height: 100vh - 20px;
-    background: #0f0f0f;
+    background-color: #0f0f0f;
   }
 
   #mainContent {
@@ -138,7 +138,7 @@
     height: 40px;
     z-index: 1;
     border-bottom: 1px solid #444;
-    background: #151515;
+    background-color: #151515;
   }
 
   #timeAxis {
@@ -174,7 +174,7 @@
 
   #eventsBar .timelineEvent {
     padding: 0;
-    background: none;
+    background-color: none;
     border: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
     transition: transform 0.2s, box-shadow 0.2s;
@@ -186,10 +186,7 @@
   }
 
   #timeline::-webkit-scrollbar {
-    width: 6px;
     height: 6px;
-    background: transparent;
-    border-radius: 10px;
   }
 
   #timeline::-webkit-scrollbar-track {
@@ -197,24 +194,7 @@
   }
 
   #timeline::-webkit-scrollbar-corner {
-    background: transparent;
-  }
-
-  #timeline:hover::-webkit-scrollbar {
-    background: #444;
-  }
-
-  #timeline::-webkit-scrollbar-thumb {
-    border-radius: 10px;
-    background: transparent;
-  }
-
-  #timeline:hover::-webkit-scrollbar-thumb {
-    background: #888;
-  }
-
-  #timeline::-webkit-scrollbar-thumb:hover {
-    background: #ccc;
+    background-color: transparent;
   }
 
   .listedEventInfo {
@@ -228,15 +208,6 @@
   #eventsBar .timelineEvent:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 24px rgba(0,0,0,1);
-  }
-
-  :global {
-    .os-theme-dark {
-      --os-handle-bg: #888;
-      --os-handle-bg-hover: #ccc;
-      --os-handle-bg-active: #ccc;
-      --os-track-bg: #444;
-    }
   }
 
 </style>

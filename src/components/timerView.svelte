@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
 
   import type { Timer } from "../types/types";
+  import '../routes/style.css';
 
   let {
     setStatus,
@@ -199,21 +200,21 @@
       <div id="controlsContainer">
         {#if isEditing}
           <div class="timerControls">
-            <button class="timerButton" onclick={setTimer}>Save</button>
-            <button class="timerButton" onclick={increase}>
+            <button class="timerButton primary-button" onclick={setTimer}>Save</button>
+            <button class="timerButton primary-button" onclick={increase}>
               <img id="timeUp-icon" src="up-arrow.svg" alt="upArrow">
             </button>
-            <button class="timerButton" onclick={decrease}>
+            <button class="timerButton primary-button" onclick={decrease}>
               <img id="timeDown-icon" src="down-arrow.svg" alt="downArrow">
             </button>
-            <button class="timerButton" onclick={cancelEdit}>Cancel</button>
+            <button class="timerButton primary-button" onclick={cancelEdit}>Cancel</button>
           </div>
         {:else}
           <div class="timerControls">
-            <button class="timerButton" onclick={startEdit} disabled={isRunning}>Edit</button>
-            <button class="timerButton" onclick={startTimer} disabled={isRunning || remainingSeconds <= 0}>Start</button>
-            <button class="timerButton" onclick={() => {stopTimer(); updateDurationWithRemaining(); }} disabled={!isRunning}>Stop</button>
-            <button class="timerButton" onclick={resetTimer}>Reset</button>
+            <button class="timerButton primary-button" onclick={startEdit} disabled={isRunning}>Edit</button>
+            <button class="timerButton primary-button" onclick={startTimer} disabled={isRunning || remainingSeconds <= 0}>Start</button>
+            <button class="timerButton primary-button" onclick={() => {stopTimer(); updateDurationWithRemaining(); }} disabled={!isRunning}>Stop</button>
+            <button class="timerButton primary-button" onclick={resetTimer}>Reset</button>
           </div>
         {/if}
       </div>
@@ -314,33 +315,22 @@
   align-self: center;
   flex-direction: row;
   gap: 5px;
+  user-select: none;
 }
 
 .timerButton {
-  background-color: #222;
-  color: #f6f6f6;
   font-size: 16px;
-  border: none;
   border-radius: 6px;
   max-width: 80px;
-  width: 100%;
   height: 32px;
   padding: 2px 10px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-  transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .timerButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
-}
-
-.timerButton:not(:disabled):hover {
-  cursor: pointer;
-  background: #333;
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,1);
+  background-color: #222;
 }
 
 #timeUp-icon, #timeDown-icon {
@@ -362,7 +352,7 @@
   padding: 20px;
   gap: 20px;
   border-radius: 8px;
-  background: #151515;
+  background-color: #151515;
 }
 
 #timeMinutes, #timeSeconds, #timeValues input {
@@ -372,7 +362,7 @@
   max-width: 220px;
   max-height: 350px;
   font-size: 150px;
-  background: #222;
+  background-color: #222;
   border-radius: 8px;
   color: #f6f6f6;
   margin: 0;
@@ -401,7 +391,7 @@
   max-height: 120px;
   height: 100%;
   width: 100%;
-  background: #151515;
+  background-color: #151515;
   border-radius: 8px;
   outline: none;
   padding: 15px;
@@ -414,7 +404,7 @@
   padding: 10px;
   width: 100%;
   height: 100%;
-  background: #222;
+  background-color: #222;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.2s, box-shadow 0.2s;
@@ -447,7 +437,7 @@
   height: 100%;
   width: 100%;
   color: #f6f6f6;
-  background: transparent;
+  background-color: transparent;
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 17px;
@@ -467,15 +457,6 @@
   }
   100% {
     opacity: 0.5;
-  }
-}
-
-:global {
-  .os-theme-dark {
-    --os-handle-bg: #888;
-    --os-handle-bg-hover: #ccc;
-    --os-handle-bg-active: #ccc;
-    --os-track-bg: #444;
   }
 }
 

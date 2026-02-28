@@ -12,6 +12,7 @@
 
   import type { CalendarDay, CalendarEvent } from "../types/types";
   import 'overlayscrollbars/overlayscrollbars.css';
+  import '../routes/style.css';
 
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   let monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -290,16 +291,16 @@
 </script>
 
 {#if deleteEventId}
-  <div id="deleteNotificationContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
-    <div id="deleteNotificationContent">
-      <div id="deleteNotificationMessage">
+  <div class="notificationContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+    <div class="notificationContent">
+      <div>
         <p>Are you sure you want to delete this event?</p>
         <p><strong>{events.find(e => e.id === deleteEventId)?.event_name}</strong></p>
       </div>
-      <div style="display: flex; flex: 1; bottom-border: 1px solid #444;"></div>
-      <div id="deleteNotificationButtons">
-        <button onclick={() => { if (deleteEventId) deleteEvent(deleteEventId); }}>Confirm</button>
-        <button onclick={() => { deleteEventId = null; setDeleteEventId(null); }}>Cancel</button>
+      <div class="spacer" style="border-bottom: 1px solid #444;"></div>
+      <div class="notificationButtonContainer">
+        <button class="primary-button" onclick={() => { if (deleteEventId) deleteEvent(deleteEventId); }}>Confirm</button>
+        <button class="primary-button" onclick={() => { deleteEventId = null; setDeleteEventId(null); }}>Cancel</button>
       </div>
     </div>
   </div>
@@ -334,8 +335,8 @@
             </div>
           </div>
           <div class="eventFormButtons">
-            <button onclick={saveEvent}>Add</button>
-            <button onclick={() => { showAddEvent = false; setStatus("Event cancelled successfully"); }}>Cancel</button>
+            <button class="primary-button" onclick={saveEvent}>Add</button>
+            <button class="primary-button" onclick={() => { showAddEvent = false; setStatus("Event cancelled successfully"); }}>Cancel</button>
           </div>
         </OverlayScrollbarsComponent>
       </div>
@@ -370,8 +371,8 @@
             </div>
           </div>
           <div class="eventFormButtons">
-            <button onclick={updateEvent}>Save</button>
-            <button onclick={cancelEventUpdate}>Close</button>
+            <button class="primary-button" onclick={updateEvent}>Save</button>
+            <button class="primary-button" onclick={cancelEventUpdate}>Close</button>
           </div>
         </OverlayScrollbarsComponent>
       </div>
@@ -382,7 +383,7 @@
 <div id="eventList">
   <VirtualList items={selectedDate ? eventsMap.get(selectedDate) ?? [] : (Array.from(eventsMap.values()).flat() || [])} let:item>
     <div class="listedEvent">
-      <div class="listedEventInfo" style="background: {item.color}; color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">
+      <div class="listedEventInfo" style="background-color: {item.color}; color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">
         <div class="eventName">
           <p class:sliding={item.event_name.length >= 12}>{item.event_name}</p>
         </div>
@@ -391,8 +392,8 @@
       </div>
       <div class="spacer"></div>
       <div class="listedEventControls">
-        <button onclick={() => { deleteEventId = item.id; setDeleteEventId(item.id); }}>Delete</button>
-        <button onclick={() => {startEdit(item); }}>Edit</button>
+        <button class="primary-button" onclick={() => { deleteEventId = item.id; setDeleteEventId(item.id); }}>Delete</button>
+        <button class="primary-button" onclick={() => {startEdit(item); }}>Edit</button>
       </div>
     </div>
   </VirtualList>
@@ -400,10 +401,10 @@
 
 <div id="calendarView">
   <div id="calendarControls">
-    <button onclick={() => selectedDate ? prevDay() : prevMonth() }>
+    <button class="primary-button" style="background-color: transparent;" onclick={() => selectedDate ? prevDay() : prevMonth() }>
       <img id="prevArrowIcon" src="down-arrow.svg" alt="prevArrow">
     </button>
-    <button onclick={() => selectedDate ? nextDay() : nextMonth() }>
+    <button class="primary-button" style="background-color: transparent;" onclick={() => selectedDate ? nextDay() : nextMonth() }>
       <img id="nextArrowIcon" src="down-arrow.svg" alt="nextArrow">
     </button>
     {#if selectedDate}
@@ -412,8 +413,8 @@
       <p id="date">{monthNames[month]} {year}</p>
     {/if}
     {#if selectedDate}
-      <button id="closeOverlay" style="color: white;" onclick={() => { selectedDate = null; showAddEvent = false; selectedEvent = null; }}>Close</button>
-      <button id="addEvent" style="color: white;" onclick={() => { showAddEvent = true; }}>Add event</button>
+      <button id="closeOverlay" class="primary-button" onclick={() => { selectedDate = null; showAddEvent = false; selectedEvent = null; }}>Close</button>
+      <button id="addEvent" class="primary-button" onclick={() => { showAddEvent = true; }}>Add event</button>
     {/if}
   </div>
 
@@ -430,7 +431,7 @@
       </div>
       <div id="calendarDays">
         {#each days as day (day.date)}
-          <button class="dayContainer" class:nonCurrent={day.enabled == false} onclick={() => { if (!day.enabled) return; selectedDate = day.isodate; setStatus("Event view opened successfully"); }}>
+          <button class="dayContainer primary-button" class:nonCurrent={day.enabled == false} onclick={() => { if (!day.enabled) return; selectedDate = day.isodate; setStatus("Event view opened successfully"); }}>
             <div class="dayInfo">
               <p class="monthAbbreviation">{day.monthabbrev}</p>
               <div class="dayNameContainer" class:currentDay={+day.date === +currentDate}>
@@ -440,7 +441,7 @@
             {#if events.length > 0}
               <div class="dayEvents">
                 <VirtualList items={eventsMap.get(day.isodate) || []} let:item>
-                  <div class="eventContainer" style="background: {item.color};">
+                  <div class="eventContainer" style="background-color: {item.color};">
                     <div class="eventName">
                       <p class:sliding={item.event_name.length >= 18} style="color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">{item.event_name}</p>
                     </div>
@@ -472,7 +473,7 @@
     flex-direction: column;
     flex: 1 1 0;
     height: calc(100vh - 90px);
-    background: transparent;
+    background-color: transparent;
     padding: 12px;
   }
 
@@ -497,25 +498,17 @@
   }
 
   #calendarControls button {
-    display: flex;
-    max-height: 40px;
-    max-width: 40px;
-    background: transparent;
-    border: none;
+    height: 20px;
+    width: 20px;
     padding: 0;
+    box-shadow: unset;
     transition: transform 0.2s;
+    user-select: none;
   }
 
   #calendarControls button#addEvent, #calendarControls button#closeOverlay {
     max-height: 30px;
     max-width: 80px;
-    align-items: center;
-    justify-content: center;
-  }
-
-  #calendarControls button:hover {
-    cursor: pointer;
-    transform: translateY(-4px);
   }
 
   #calendarControls button #nextArrowIcon, #calendarControls button #prevArrowIcon {
@@ -540,12 +533,12 @@
     max-height: 30px;
     margin-bottom: 5px;
     gap: 10px;
-    background: transparent;
+    background-color: transparent;
   }
 
   .header {
     flex: 1 1 0;
-    background: transparent;
+    background-color: transparent;
     max-height: 30px;
     align-content: center;
     font-weight: 800;
@@ -560,22 +553,21 @@
   }
 
   .dayContainer {
-    display: flex;
     flex-direction: column;
     flex: 1 1 0;
     justify-content: flex-start;
+    align-items: unset;
     min-width: calc(100% / 7 - 10px);
     min-height: calc(100% / 6 - 10px);
-    background: #222;
-    border: 0;
-    border-radius: 8px;
+    max-width: unset;
+    max-height: unset;
     padding: 10px;
     gap: 10px;
     text-align: center;
     font-weight: 800;
     color: #222;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
   }
 
   .dayContainer .dayInfo {
@@ -591,16 +583,10 @@
     color: #f6f6f6;
   }
 
-  .dayContainer:not(.nonCurrent):hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0,0,0,1);
-    cursor: pointer;
-    background: #333;
-  }
-
   .dayContainer.nonCurrent {
     cursor: not-allowed;
-    transition: none;
+    transform: none;
+    background-color: #222;
     opacity: 0.5;
     background-image: repeating-linear-gradient(
       45deg,
@@ -661,11 +647,11 @@
     height: 30px;
     align-content: center;
     border-radius: 50%;
-    background: #888;
+    background-color: #888;
   }
 
   .dayNameContainer.currentDay {
-    background: #723fffd0;
+    background-color: #723fffd0;
   }
 
   @keyframes slideText {
@@ -677,20 +663,11 @@
     }
   }
 
-  :global {
-    .os-theme-dark {
-      --os-handle-bg: #888;
-      --os-handle-bg-hover: #ccc;
-      --os-handle-bg-active: #ccc;
-      --os-track-bg: #444;
-    }
-  }
-
   #eventList {
     display: flex;
     flex-direction: column;
     width: 300px;
-    background: transparent;
+    background-color: transparent;
     border-right: 1px solid #444;
     padding: 16px 5px 1px 16px;
   }
@@ -702,7 +679,7 @@
     max-height: 130px;
     padding: 10px;
     border-bottom: 1px solid #444;
-    background: transparent;
+    background-color: transparent;
   }
 
   .listedEventInfo {
@@ -739,7 +716,7 @@
     padding: 20px;
     border-radius: 8px;
     border: 1px solid #444;
-    background: #0f0f0f;
+    background-color: #0f0f0f;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   }
 
@@ -750,7 +727,7 @@
     flex: 1 1 0;
     max-width: 500px;
     overflow: auto;
-    background: #151515;
+    background-color: #151515;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   }
@@ -781,18 +758,7 @@
   .eventFormButtons button, .listedEventControls button, #calendarControls button#addEvent, #calendarControls button#closeOverlay {
     width: 80px;
     height: 30px;
-    background: #222;
-    border: 0;
     border-radius: 6px;
-    color: #f6f6f6;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  .eventFormButtons button:hover, .listedEventControls button:hover, #calendarControls button#addEvent:hover, #calendarControls button#closeOverlay:hover {
-    cursor: pointer;
-    background: #333;
-    transform: translateY(-4px);
   }
 
   #addEventInfo, #editEventInfo {
@@ -811,7 +777,7 @@
     flex: 1 1 0;
     justify-content: center;
     max-height: 84px;
-    background: #222;
+    background-color: #222;
     border-radius: 12px;
     padding: 10px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
@@ -827,11 +793,13 @@
     max-height: 40px;
     height: 100%;
     width: 100%;
-    background: #151515;
+    background-color: #151515;
     border-radius: 8px;
     padding: 2px 10px;
     color: #f6f6f6;
     font-size: 16px;
+    border: none;
+    outline: none;
   }
 
   #addEventNameContainer input:focus, #editEventNameContainer input:focus, .eventStartEndContainer .eventInputContainer input:focus {
@@ -854,7 +822,7 @@
     padding: 10px;
     gap: 5px;
     border-radius: 12px;
-    background: #222;
+    background-color: #222;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
     transition: transform 0.2s, box-shadow 0.2s;
   }
@@ -878,7 +846,7 @@
     padding: 10px;
     gap: 10px;
     border-radius: 8px;
-    background: #151515;
+    background-color: #151515;
   }
 
   .eventStartEndContainer .eventInputContainer input {
@@ -886,7 +854,9 @@
     max-height: 100vh;
     height: 100%;
     width: 100%;
-    background: #222;
+    background-color: #222;
+    border: none;
+    outline: none;
     border-radius: 6px;
     padding: 2px 10px;
     color: #f6f6f6;
@@ -898,74 +868,6 @@
   .eventStartEndContainer .eventInputContainer input[type="number"]::-webkit-outer-spin-button, .eventStartEndContainer .eventInputContainer input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
-  }
-
-  #deleteNotificationContainer {
-    position: fixed;
-    display: flex;
-    right: 5px;
-    bottom: 25px;
-    z-index: 10005;
-    max-width: 400px;
-    width: 100%;
-    max-height: 150px;
-    height: 100%;
-    background: #151515;
-    border: 1px solid #444;
-    border-radius: 8px;
-  }
-
-  #deleteNotificationContent {
-    display: flex;
-    flex: 1 1 0;
-    flex-direction: column;
-    padding: 10px;
-  }
-
-  #deleteNotificationButtons {
-    display: flex;
-    flex-direction: row;
-    max-height: 30px;
-    height: 100%;
-    gap: 10px;
-  }
-
-  #deleteNotificationContent p {
-    flex: 1 1 0;
-    overflow-y: auto;
-    text-align: left;
-    white-space: pre-wrap;
-    word-break: break-word;
-    word-wrap: break-word;
-    margin: 0;
-  }
-
-  #deleteNotificationButtons button {
-    background-color: #222;
-    color: #f6f6f6;
-    font-size: 16px;
-    border: none;
-    border-radius: 6px;
-    max-width: 50px;
-    width: 100%;
-    max-height: 26px;
-    height: 100%;
-    font-size: 14px;
-    margin-top: 4px;
-    padding: 2px 10px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  #deleteNotificationButtons button {
-    max-width: 70px;
-  }
-
-  #deleteNotificationButtons button:hover {
-    cursor: pointer;
-    background: #333;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,1);
   }
 
 </style>

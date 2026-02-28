@@ -14,7 +14,7 @@
 
   import type { Note } from '../types/types';
   import 'overlayscrollbars/overlayscrollbars.css';
-  import '../routes/app.css';
+  import '../routes/style.css';
 
   const { setDeleteNoteId } = getContext<{ getDeleteNoteId: () => number | null, setDeleteNoteId: (id: number | null) => void }>('deleteNoteContext');
 
@@ -53,7 +53,7 @@
   let titleEditor = $state<Editor | null>(null);
   let SelectedContentType = $state<'noteTitle' | 'noteContent' | null>(null);
 
-  const isCategory = note.note_type === 'categorical';
+  const isCategory = $derived(note.note_type === 'categorical');
 
   let originalOpenState = false;
   let hasSavedState = false;
@@ -399,10 +399,10 @@
         </button>
         {#if isEditing}
           <div class="editorToolbar">
-            <button onclick={() => applyFormat('underline')}>
+            <button class="primary-button" onclick={() => applyFormat('underline')}>
               <img id="textUnderline-icon" src="underline.svg" alt="textUnderline">
             </button>
-            <button onclick={() => applyFormat('bold')}>
+            <button class="primary-button" onclick={() => applyFormat('bold')}>
               <img id="textBold-icon" src="boldtext.svg" alt="textBold">
             </button>
             <select
@@ -446,23 +446,23 @@
     </div>
     <div class="noteControls">
       {#if isCategory}
-        <button onclick={addChild} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Add Note</button>
-        <button onclick={OpenAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Open all</button>
-        <button onclick={CloseAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Close all</button>
-        <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
-        <button onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
+        <button class="primary-button" onclick={addChild} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Add Note</button>
+        <button class="primary-button" onclick={OpenAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Open all</button>
+        <button class="primary-button" onclick={CloseAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Close all</button>
+        <button class="primary-button" onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
+        <button class="primary-button" onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
       {:else if !isCategory}
         {#if note.parent_id !== null}
-          <button onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>{open ? 'Hide' : 'Show'}</button>
+          <button class="primary-button" onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>{open ? 'Hide' : 'Show'}</button>
         {/if}
-        <button onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
-        <button onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isZoomed}>Delete</button>
+        <button class="primary-button" onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
+        <button class="primary-button" onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isZoomed}>Delete</button>
       {/if}
     </div>
     {#if isEditing}
       <div class="noteControls">
-        <button id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
-        <button id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
+        <button class="primary-button" id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
+        <button class="primary-button" id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
       </div>
       <div class="infoText">
         <small>Press Esc to cancel | Press Enter or click outside to save</small>
@@ -474,7 +474,7 @@
         />
       {/if}
     {:else}
-      <h3 class="noteTitle" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{@html note.title || 'Untitled'}</h3>
+      <h3 class="noteTitle" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}><p>{@html note.title || 'Untitled'}</p></h3>
     {/if}
   </div>
 
@@ -490,8 +490,8 @@
               />
             {/if}
             <div class="noteControls" style="margin-top: 10px;">
-              <button id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
-              <button id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
+              <button class="primary-button" id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
+              <button class="primary-button" id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
             </div>
             <div class="infoText">
               <small>Press Esc to cancel | Press Enter or click outside to save</small>
@@ -526,3 +526,261 @@
     {/if}
   </div>
 </div>
+
+<style>
+
+.note {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  background-color: #222;
+  border-radius: 8px;
+  padding: 18px 4px;
+  height: calc((100vh - 151px) / 2);
+  min-width: calc((100vw - 140px) / 4);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.note.category {
+  align-items: center;
+  max-height: calc((100vh - 151px) / 2);
+  height: 100%;
+  min-width: calc((100vw - 140px) / 4);
+  width: 100%;
+}
+
+.note.zoomed {
+  max-height: calc((100vh - 151px) / 1.2);
+  height: 100%;
+}
+
+.noteTitle {
+  margin: 0;
+  width: fit-content;
+  align-self: center;
+  font-size: 20px;
+}
+
+.note:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
+}
+
+.noteContent {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  margin: 12px 0;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  word-wrap: break-word;
+  min-height: calc((100vh - 524px) / 2);
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 6px;
+}
+
+#noteContentOuter {
+  height: 100%;
+  padding: 0 12px;
+  margin-left: 6px;
+  scrollbar-gutter: stable;
+  overflow-y: auto;
+}
+
+#noteTitleBox {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  justify-items: center;
+  border-bottom: 1px solid #444;
+}
+
+#noteTitleBox input {
+  max-width: 250px;
+  width: 100%;
+  height: 24px;
+  margin-bottom: 10px;
+  align-self: center;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f6f6f6;
+  background-color: transparent;
+  border: 1px solid #888;
+  border-radius: 6px;
+}
+
+#noteTitleBox input:focus {
+  border-color: #723fffd0;
+  outline: none;
+}
+
+.noteControls {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 0;
+  justify-content: center;
+  gap: 5px;
+  margin: 0 10px 10px;
+}
+
+.noteControls button {
+  height: 32px;
+  background-color: #333;
+}
+
+.noteControls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.noteControls button:not(:disabled):hover {
+  background-color: #444;
+}
+
+.noteControls #noteEditSaveBtn, .noteControls #noteEditCancelBtn {
+  height: 28px;
+  max-width: 80px;
+}
+
+.subNotes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(381px, 100vw));
+  min-height: 50px;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 12px;
+  background-color: #151515;
+  border-radius: 8px;
+}
+
+#dragZoomContainer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 10px;
+}
+
+.dragHandle {
+  display: flex;
+  align-self: flex-end;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 14px;
+  margin-bottom: 6px;
+  background-color: transparent;
+  user-select: none;
+}
+
+.dragHandle #dragHandle-icon {
+  margin: 0;
+  width: 20px;
+  height: 20px;
+  filter: invert(0.7);
+}
+
+.zoomBtn {
+  display: flex;
+  align-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background-color: transparent;
+  padding: 0;
+  margin-left: 14px;
+  user-select: none;
+}
+
+.zoomBtn:disabled {
+  opacity: 0.5;
+}
+
+.zoomBtn #zoom-icon, .zoomBtn #zoom-icon-disabled {
+  width: 30px;
+  height: 30px;
+  filter: invert(0.7);
+}
+
+.zoomBtn #zoom-icon-disabled:hover {
+  cursor: not-allowed;
+}
+
+.zoomBtn #zoom-icon:hover {
+  filter: invert(0.9);
+  cursor: pointer;
+}
+
+.editorToolbar {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  align-items: center;
+  gap: 5px;
+}
+
+.editorToolbar button {
+  height: 30px;
+  width: 30px;
+  background-color: #333;
+}
+
+.editorToolbar #textUnderline-icon, .editorToolbar #textBold-icon {
+  width: 22px;
+  height: 22px;
+  filter: brightness(1) invert(0.7);
+}
+
+.editorToolbar button:hover {
+  background-color: #444;
+}
+
+.editorToolbar select {
+  height: 30px;
+  background-color: #333;
+  margin-left: 0;
+  color: #f6f6f6;
+  border: none;
+  outline: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+  transition: box-shadow 0.2s;
+}
+
+.editorToolbar select:hover {
+  cursor: pointer;
+  background-color: #444;
+  box-shadow: 0 4px 12px rgba(0,0,0,1);
+}
+
+.editorToolbar select option {
+  background-color: #333;
+}
+
+.editorToolbar #colorSelectBar {
+  min-width: 20px;
+  max-width: 100px;
+  width: 100%;
+  margin: 0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.editorToolbar #colorSelectBar:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,1);
+  cursor: pointer;
+}
+
+.infoText {
+  display: flex;
+  flex-direction: column;
+  opacity: 0.5;
+}
+
+</style>
