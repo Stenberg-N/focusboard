@@ -5,7 +5,7 @@
   import debounce from 'lodash/debounce';
   import VirtualList from '@sveltejs/svelte-virtual-list';
   import { getContext } from 'svelte';
-  import { fly } from 'svelte/transition';
+  import { fly, slide } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
 
   import CalendarEventOverlay from "./CalendarEventOverlay.svelte";
@@ -37,6 +37,7 @@
     });
     return map;
   });
+  let eventToSave = $state<string | null>(null);
 
   let headers = $state<Array<string>>([]);
   let days = $state<CalendarDay[]>([]);
@@ -44,10 +45,13 @@
   const setDeleteEventId = getContext<(id: number | null) => void>('setDeleteEventId');
   let deleteEventId = $state<number | null>(null);
 
-  let selectedEvent = $state<CalendarEvent | null>(null);
+  let eventInEdit = $state<CalendarEvent | null>(null);
   let showAddEvent = $state<boolean>(false);
   let displayEventName = $state<string | null>(null);
   let height = $state<number>(0);
+  let addEventInfoHeight = $state<number>(0);
+  let addEventContainerHeight = $state<number>(0);
+  let isOpen = $state<boolean>(false);
 
   let editEventNameInput = $state<HTMLInputElement>();
   let editEventStartHours = $state<number>(0);
@@ -56,6 +60,7 @@
   let editEventEndMinutes = $state<number>(0);
 
   let eventNameInput = $state<HTMLInputElement>();
+  let addEventSelectedDay = $state<number>(1);
   let eventStartHours = $state<number>(0);
   let eventStartMinutes = $state<number>(0);
   let eventEndHours = $state<number>(0);
@@ -83,14 +88,18 @@
   });
 
   $effect(() => {
-    if (showAddEvent) height = 366;
-    if (selectedEvent) height = 390;
-    if (showAddEvent && selectedEvent) height = 736;
+    if (showAddEvent && !selectedDate) height = 436; else height = 366;
+    if (eventInEdit) height = 390;
+    if (showAddEvent && eventInEdit && !selectedDate) height = 806; else if (showAddEvent && eventInEdit) height = 736;
   });
 
   $effect(() => {
-    if (selectedEvent !== null) {
-      displayEventName = selectedEvent.event_name;
+    if (!selectedDate) addEventInfoHeight = 310, addEventContainerHeight = 396; else addEventInfoHeight = 240, addEventContainerHeight = 326;
+  });
+
+  $effect(() => {
+    if (eventInEdit !== null) {
+      displayEventName = eventInEdit.event_name;
     }
   });
 
@@ -139,12 +148,12 @@
   }
 
   function startEdit(event: CalendarEvent) {
-    selectedEvent = event;
+    eventInEdit = event;
 
-    editEventStartHours = Math.floor(selectedEvent.event_start / 3600);
-    editEventStartMinutes = Math.floor((selectedEvent.event_start % 3600) / 60);
-    editEventEndHours = Math.floor(selectedEvent.event_end / 3600);
-    editEventEndMinutes = Math.floor((selectedEvent.event_end % 3600) / 60);
+    editEventStartHours = Math.floor(eventInEdit.event_start / 3600);
+    editEventStartMinutes = Math.floor((eventInEdit.event_start % 3600) / 60);
+    editEventEndHours = Math.floor(eventInEdit.event_end / 3600);
+    editEventEndMinutes = Math.floor((eventInEdit.event_end % 3600) / 60);
 
     setStatus("Edit started");
   }
@@ -163,7 +172,7 @@
         setStatus("Invalid event start and/or end times");
         return;
       } else {
-        await invoke('update_event', { id: selectedEvent?.id, eventName: editEventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd });
+        await invoke('update_event', { id: eventInEdit?.id, eventName: editEventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd });
         await getEvents();
 
         if (editEventNameInput) displayEventName = editEventNameInput?.value;
@@ -178,7 +187,7 @@
   }
 
   function cancelEventUpdate() {
-    selectedEvent = null;
+    eventInEdit = null;
     setStatus("Edit closed");
   }
 
@@ -189,9 +198,9 @@
         await getEvents();
       }
 
+      setStatus(`Deleted event ${events.find(e => e.id === deleteEventId)?.event_name} successfully`);
       deleteEventId = null;
       setDeleteEventId(null)
-      setStatus(`Deleted event ${selectedEvent?.event_name} successfully`);
     } catch (error) {
       console.log("Error deleting event:", error);
       setStatus(`Failed to delete event: ${error}`);
@@ -209,11 +218,17 @@
       let timeStart = (eventStartHours * 3600) + (eventStartMinutes * 60);
       let timeEnd = (eventEndHours * 3600) + (eventEndMinutes * 60);
 
+      if (!selectedDate) {
+        eventToSave = `${year}-${String(month + 1).padStart(2, '0')}-${String(addEventSelectedDay).padStart(2, '0')}`;
+       } else {
+        eventToSave = selectedDate;
+      }
+
       if (timeStart > timeEnd) {
         setStatus("Invalid event start and/or end times");
         return;
       } else {
-        await invoke('insert_event', { eventDate: selectedDate, yearMonth: yearMonth, eventName: eventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd, color: randomColor });
+        await invoke('insert_event', { eventDate: eventToSave, yearMonth: yearMonth, eventName: eventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd, color: randomColor });
         await getEvents();
 
         eventStartHours = 0;
@@ -306,19 +321,36 @@
   </div>
 {/if}
 
-{#if showAddEvent || selectedEvent}
+{#if showAddEvent || eventInEdit}
   <div id="addEditEventContainer" style="height: {height}px;">
     {#if showAddEvent}
-      <div id="addEventContainer" role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEvent(); } if (e.key === 'Escape') { e.preventDefault(); showAddEvent = false; setStatus("Event cancelled successfully"); }}}>
+      <div id="addEventContainer" style="max-height: {addEventContainerHeight}px;" role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEvent(); } if (e.key === 'Escape') { e.preventDefault(); showAddEvent = false; setStatus("Event cancelled successfully"); }}}>
         <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
           <h3>Add event</h3>
-          <div id="addEventInfo">
+          <div id="addEventInfo" style="height: {addEventInfoHeight}px;">
             <div id="addEventNameContainer">
               <p>Event name</p>
               <input bind:this={eventNameInput} />
             </div>
+            {#if !selectedDate}
+              <div id="addEventSelectDayContainer" class:noRaise={isOpen}>
+                <button id="selectedDay" class="primary-button" class:listOpen={isOpen} onclick={() => {isOpen = !isOpen}}>{addEventSelectedDay}</button>
+                  {#if isOpen}
+                    <div id="addEventSelectDayList" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }}>
+                      <div style="overflow-y: auto; overflow-x: hidden;">
+                        {#each Array.from({ length: new Date(year, month + 1, 0).getDate()}, (_, i) => i+1) as day}
+                          <button class="dayOption primary-button" onclick={() => { addEventSelectedDay = day; isOpen = !isOpen; }}>{day}</button>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                <div style="height: 24px; align-self: center;">
+                  /{month+1}/{year}
+                </div>
+              </div>
+            {/if}
             <div class="eventStartEndContainer">
-              <div class="eventStartTimesContainer">
+              <div class="eventStartTimesContainer" class:noRaise={isOpen}>
                 <p>Event start</p>
                 <div class="eventInputContainer">
                   <input type="number" bind:value={eventStartHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventStartHours = 23; if (value < 0) eventStartHours = 0; }} />
@@ -342,16 +374,16 @@
       </div>
     {/if}
 
-    {#if selectedEvent}
+    {#if eventInEdit}
       <div id="editEventContainer" class:moved={showAddEvent} role="button" tabindex="0" style="max-height: 348px;" onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); updateEvent(); } if (e.key === 'Escape') { e.preventDefault(); cancelEventUpdate(); }}}>
         <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
           <h3>
-            Edit event:<br><span style="color: {selectedEvent.color}">{displayEventName}</span>
+            Edit event:<br><span style="color: {eventInEdit.color}">{displayEventName}</span>
           </h3>
           <div id="editEventInfo">
             <div id="editEventNameContainer">
               <p>Event name</p>
-              <input value={selectedEvent?.event_name} bind:this={editEventNameInput} />
+              <input value={eventInEdit?.event_name} bind:this={editEventNameInput} />
             </div>
             <div class="eventStartEndContainer">
               <div class="eventStartTimesContainer">
@@ -412,9 +444,9 @@
     {:else}
       <p id="date">{monthNames[month]} {year}</p>
     {/if}
+    <button id="addEvent" class="primary-button" onclick={() => { showAddEvent = true; }}>Add event</button>
     {#if selectedDate}
-      <button id="closeOverlay" class="primary-button" onclick={() => { selectedDate = null; showAddEvent = false; selectedEvent = null; }}>Close</button>
-      <button id="addEvent" class="primary-button" onclick={() => { showAddEvent = true; }}>Add event</button>
+      <button id="closeOverlay" class="primary-button" onclick={() => { selectedDate = null; showAddEvent = false; eventInEdit = null; }}>Close</button>
     {/if}
   </div>
 
@@ -718,6 +750,7 @@
     border: 1px solid #444;
     background-color: #0f0f0f;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+    user-select: none;
   }
 
   #addEventContainer, #editEventContainer {
@@ -730,10 +763,6 @@
     background-color: #151515;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-  }
-
-  #addEventContainer {
-    max-height: 326px;
   }
 
   #editEventContainer {
@@ -868,6 +897,92 @@
   .eventStartEndContainer .eventInputContainer input[type="number"]::-webkit-outer-spin-button, .eventStartEndContainer .eventInputContainer input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
+  }
+
+  #addEventSelectDayContainer {
+    display: flex;
+    flex-direction: row;
+    flex: 1 1 0;
+    align-items: top;
+    max-height: 50px;
+    height: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    background-color: #222;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+    transition: transform 0.2s, box-shadow 0.2s;
+    font-size: 16px;
+  }
+
+  #addEventSelectDayContainer:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+  }
+
+  #addEventSelectDayContainer #selectedDay {
+    will-change: transition animation;
+    align-self: center;
+    width: 56px;
+    height: 24px;
+    margin: 0 5px;
+    background-color: #151515;
+    transition: border-radius 400ms cubic-bezier(0.645, 0.045, 0.355, 1.000);
+    box-shadow: none;
+  }
+
+  #addEventSelectDayContainer #selectedDay:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  #addEventSelectDayContainer #selectedDay.listOpen {
+    animation: openList 0.4s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+    border-radius: 8px 8px 0 0;
+  }
+
+  #addEventSelectDayList {
+    background-color: #151515;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    position: fixed;
+    align-items: center;
+    z-index: 10003;
+    color: #f6f6f6;
+    width: 56px;
+    height: 180px;
+    overflow: hidden;
+    border-radius: 0 0 8px 8px;
+    transform: translateX(5px) translateY(24px);
+    scrollbar-gutter: stable;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+  }
+
+  .eventStartTimesContainer.noRaise, #addEventSelectDayContainer.noRaise {
+    transform: none;
+  }
+
+  .dayOption {
+    height: 30px;
+    width: 40px;
+    margin: 5px 5px 5px 0;
+    border-radius: 0 8px 8px 0;
+  }
+
+  .dayOption:hover {
+    transform: translateY(-2px);
+  }
+
+  @keyframes openList {
+    0% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(5px);
+    }
+    100% {
+      transform: translateY(0);
+    }
   }
 
 </style>

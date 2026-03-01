@@ -47,7 +47,6 @@
   let notes = $state<Note[]>([]);
   let currentTabNotes = $state<Note[]>([]);
   let tabs = $state<Tab[]>([]);
-  let uiVisibility = $state({ tabBar: true, });
   let topLevelNotes = $derived.by(() => { return currentTabNotes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
   let foundNotes = $derived.by(() => { return notes.filter(n => stripHtml(n.title).toLowerCase() === searchable?.trim().toLowerCase()) });
   let previewNotes = $state<Note[] | null>(null);
