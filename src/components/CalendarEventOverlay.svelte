@@ -168,7 +168,7 @@
     position: absolute;
     inset: 0;
     background-image: repeating-linear-gradient(to right, rgba(255,255,255,0.1) 0, rgba(255,255,255,0.1) 1px, transparent 1px, transparent calc(100% / 48));
-    background-size: calc(100% - 1px) 100%;
+    background-size: 100% 100%;
     pointer-events: none;
   }
 
