@@ -28,6 +28,7 @@
     zoomedNoteId = null,
     isSearching = false,
     getAllNotes,
+    noteHeightMultiplier,
   }: {
     note: Note;
     reloadNotes: () => void;
@@ -38,13 +39,11 @@
     zoomedNoteId: number | null;
     isSearching: boolean;
     getAllNotes: () => Promise<void>;
+    noteHeightMultiplier: "larger" | "smaller" | null;
   } = $props();
 
   let childNotes = $derived.by(() => { return currentTabNotes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
   let previewChildNotes = $state<Note[] | null>(null);
-
-  let isZoomed = $derived(zoomedNoteId === note.id);
-  let open = $derived(noteOpenStates[note.id] ?? true);
 
   let isEditing = $state<boolean>(false);
   let editingTitle = $state('');
@@ -58,7 +57,11 @@
   let originalOpenState = false;
   let hasSavedState = false;
 
+  let isZoomed = $derived(zoomedNoteId === note.id);
+  let open = $derived(noteOpenStates[note.id] ?? true);
   let collapseOpen = $derived(isEditing || open);
+  let noteMaxHeight = $state<number>(0);
+  let noteContentHeight = $state<number>(0);
 
   const flipDurationMs = 200;
 
@@ -108,6 +111,13 @@
       };
     }
   });
+
+  $effect(() => {
+    if (noteHeightMultiplier) {
+      if (noteHeightMultiplier == "smaller") noteMaxHeight = (window.innerHeight - 151) / 2, noteContentHeight = (window.innerHeight - 525) / 2;
+      else if (noteHeightMultiplier == "larger") noteMaxHeight = (window.innerHeight - 140), noteContentHeight = window.innerHeight - 285;
+    }
+  })
 
   async function addChild() {
     try {
@@ -380,7 +390,7 @@
 </script>
 
 <div
-  class="note"
+  class="note" style="max-height: {noteMaxHeight}px;"
   class:category={isCategory}
   class:editing={isEditing}
   class:zoomed={isZoomed}
@@ -388,7 +398,7 @@
   use:clickOutside
 >
   <div id="noteTitleBox">
-    <div id="dragZoomContainer">
+    <div class="noteControls">
       {#if !isCategory}
         <button class="zoomBtn" onclick={() => zoomedNote(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>
           {#if isZoomed || isEditing}
@@ -397,41 +407,29 @@
             <img id="zoom-icon" src="zoom.svg" alt="ZoomIcon">
           {/if}
         </button>
-        {#if isEditing}
-          <div class="editorToolbar">
-            <button class="primary-button" onclick={() => applyFormat('underline')}>
-              <img id="textUnderline-icon" src="underline.svg" alt="textUnderline">
-            </button>
-            <button class="primary-button" onclick={() => applyFormat('bold')}>
-              <img id="textBold-icon" src="boldtext.svg" alt="textBold">
-            </button>
-            <select
-              onchange={(e) => {
-                const target = e.target as HTMLSelectElement | null;
-                if (target?.value) {
-                  applyFormat('fontSize', target.value);
-                }
-              }}
-            >
-              <option value="">Font size</option>
-              <option value="12px">Small</option>
-              <option value="16px">Normal</option>
-              <option value="20px">Large</option>
-              <option value="36px">Huge</option>
-            </select>
-            <input
-              type="color"
-              id="colorSelectBar"
-              onchange={(e) => {
-                const target = e.target as HTMLInputElement | null;
-                if (target?.value) {
-                  applyFormat('foreColor', target.value);
-                }
-              }}
-              title="Text color"
-            />
-          </div>
+      {/if}
+      {#if isEditing}
+        <button class="primary-button" onclick={saveEdit}><img src="save.svg" alt="Save" style="max-height: 20px; max-width: 20px;"></button>
+        <button class="primary-button" onclick={cancelEdit}><img src="cancel.svg" alt="Cancel" style="max-height: 20px; max-width: 20px;"></button>
+      {/if}
+      {#if isCategory}
+        <button class="primary-button" onclick={addChild} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}><img src="close.svg" alt="Add note" style="transform: rotate(45deg); max-height: 16px; max-width: 16px;"></button>
+        <button class="primary-button" onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}><img src="edit-pencil.svg" alt="Edit icon" style="max-height: 22px; max-width: 22px;"></button>
+        <button class="primary-button" onclick={OpenAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}><img src="show-eye.svg" alt="Show notes" style="max-height: 24px; max-width: 24px;"></button>
+        <button class="primary-button" onclick={CloseAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}><img src="hide-eye.svg" alt="Hide notes" style="max-height: 24px; max-width: 24px;"></button>
+        <button class="primary-button" onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }}><img src="trash-can.svg" alt="Trash can" style="max-height: 20px; max-width: 20px;"></button>
+      {:else if !isCategory}
+        {#if note.parent_id !== null}
+          <button class="primary-button" onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>
+            {#if open}
+              <img src="hide-eye.svg" alt="Eye icon" style="max-height: 24px; max-width: 24px;">
+            {:else}
+              <img src="show-eye.svg" alt="Eye icon" style="max-height: 24px; max-width: 24px;">
+            {/if}
+          </button>
         {/if}
+        <button class="primary-button" onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}><img src="edit-pencil.svg" alt="Edit icon" style="max-height: 22px; max-width: 22px;"></button>
+        <button class="primary-button" onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isZoomed}><img src="trash-can.svg" alt="Trash can" style="max-height: 20px; max-width: 20px;"></button>
       {/if}
       <div class="spacer"></div>
       {#if !isZoomed}
@@ -444,28 +442,39 @@
         {/if}
       {/if}
     </div>
-    <div class="noteControls">
-      {#if isCategory}
-        <button class="primary-button" onclick={addChild} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Add Note</button>
-        <button class="primary-button" onclick={OpenAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Open all</button>
-        <button class="primary-button" onclick={CloseAllSubnotes} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Close all</button>
-        <button class="primary-button" onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
-        <button class="primary-button" onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }}>Delete</button>
-      {:else if !isCategory}
-        {#if note.parent_id !== null}
-          <button class="primary-button" onclick={toggle} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing || isZoomed}>{open ? 'Hide' : 'Show'}</button>
-        {/if}
-        <button class="primary-button" onclick={startEdit} ondblclick={e => { e.stopPropagation(); }} disabled={isEditing}>Edit</button>
-        <button class="primary-button" onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }} disabled={isZoomed}>Delete</button>
-      {/if}
-    </div>
     {#if isEditing}
-      <div class="noteControls">
-        <button class="primary-button" id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
-        <button class="primary-button" id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
-      </div>
-      <div class="infoText">
-        <small>Press Esc to cancel | Press Enter or click outside to save</small>
+      <div class="editorToolbar">
+        <button class="primary-button" onclick={() => applyFormat('underline')}>
+          <img id="textUnderline-icon" src="underline.svg" alt="textUnderline">
+        </button>
+        <button class="primary-button" onclick={() => applyFormat('bold')}>
+          <img id="textBold-icon" src="boldtext.svg" alt="textBold">
+        </button>
+        <select
+          onchange={(e) => {
+            const target = e.target as HTMLSelectElement | null;
+            if (target?.value) {
+              applyFormat('fontSize', target.value);
+            }
+          }}
+        >
+          <option value="">Font size</option>
+          <option value="12px">Small</option>
+          <option value="16px">Normal</option>
+          <option value="20px">Large</option>
+          <option value="36px">Huge</option>
+        </select>
+        <input
+          type="color"
+          id="colorSelectBar"
+          onchange={(e) => {
+            const target = e.target as HTMLInputElement | null;
+            if (target?.value) {
+              applyFormat('foreColor', target.value);
+            }
+          }}
+          title="Text color"
+        />
       </div>
       {#if titleEditor}
         <EditorContent
@@ -490,8 +499,8 @@
               />
             {/if}
             <div class="noteControls" style="margin-top: 10px;">
-              <button class="primary-button" id="noteEditSaveBtn" onclick={saveEdit}>Save</button>
-              <button class="primary-button" id="noteEditCancelBtn" onclick={cancelEdit}>Cancel</button>
+              <button class="primary-button" onclick={saveEdit}><img src="save.svg" alt="Save" style="max-height: 20px; max-width: 20px;"></button>
+              <button class="primary-button" onclick={cancelEdit}><img src="cancel.svg" alt="Cancel" style="max-height: 20px; max-width: 20px;"></button>
             </div>
             <div class="infoText">
               <small>Press Esc to cancel | Press Enter or click outside to save</small>
@@ -499,7 +508,7 @@
           {/if}
         {:else}
           {#if !isCategory}
-            <p class="noteContent" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{@html note.content || 'No content'}</p>
+            <p class="noteContent" style="min-height: {noteContentHeight}px" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{@html note.content || 'No content'}</p>
           {:else if isCategory}
             <div class="subNotes" use:dragHandleZone={{
               items: previewChildNotes ?? childNotes,
@@ -515,7 +524,7 @@
               {#key childNotes.map(n => n.id).join('-')}
                 {#each (previewChildNotes ?? childNotes) as child (child.id)}
                   <div animate:flip={{ duration: flipDurationMs }} data-is-dnd-shadow-item-hint={(child as any)[SHADOW_ITEM_MARKER_PROPERTY_NAME] ?? false}>
-                    <ComponentNote note={child} {reloadNotes} {setStatus} {currentTabNotes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} />
+                    <ComponentNote note={child} {reloadNotes} {setStatus} {currentTabNotes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} {noteHeightMultiplier}/>
                   </div>
                 {/each}
               {/key}
@@ -536,7 +545,7 @@
   background-color: #222;
   border-radius: 8px;
   padding: 18px 4px;
-  height: calc((100vh - 151px) / 2);
+  height: 100%;
   min-width: calc((100vw - 140px) / 4);
   box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.2s, box-shadow 0.2s;
@@ -575,7 +584,6 @@
   white-space: pre-wrap;
   word-break: break-word;
   word-wrap: break-word;
-  min-height: calc((100vh - 524px) / 2);
   border: 1px solid #444;
   border-radius: 8px;
   padding: 6px;
@@ -622,13 +630,21 @@
   flex-direction: row;
   flex: 1 1 0;
   justify-content: center;
+  height: 32px;
   gap: 5px;
   margin: 0 10px 10px;
 }
 
 .noteControls button {
   height: 32px;
+  width: 32px;
   background-color: #333;
+  justify-content: center;
+  align-items: center;
+}
+
+.noteControls button img {
+  filter: brightness(0) invert(0.7);
 }
 
 .noteControls button:disabled {
@@ -639,11 +655,6 @@
 
 .noteControls button:not(:disabled):hover {
   background-color: #444;
-}
-
-.noteControls #noteEditSaveBtn, .noteControls #noteEditCancelBtn {
-  height: 28px;
-  max-width: 80px;
 }
 
 .subNotes {
@@ -657,23 +668,14 @@
   border-radius: 8px;
 }
 
-#dragZoomContainer {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 18px;
-  margin-bottom: 10px;
-}
-
 .dragHandle {
   display: flex;
   align-self: flex-end;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-right: 14px;
-  margin-bottom: 6px;
+  width: 32px;
+  height: 32px;
+  margin-right: 4px;
   background-color: transparent;
   user-select: none;
 }
@@ -685,7 +687,7 @@
   filter: invert(0.7);
 }
 
-.zoomBtn {
+.noteControls .zoomBtn {
   display: flex;
   align-content: center;
   width: 30px;
@@ -695,6 +697,10 @@
   padding: 0;
   margin-left: 14px;
   user-select: none;
+}
+
+.noteControls .zoomBtn:not(:disabled):hover {
+  background-color: transparent;
 }
 
 .zoomBtn:disabled {
@@ -721,6 +727,8 @@
   flex-direction: row;
   width: 100%;
   align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
   gap: 5px;
 }
 

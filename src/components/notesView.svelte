@@ -31,6 +31,7 @@
     store,
     tabBarIsOpen = true,
     setTabBarState,
+    noteHeightMultiplier = $bindable(),
   }: {
     currentTabId: number | null;
     setCurrentTabId: (id: number | null) => void;
@@ -42,6 +43,7 @@
     store: Store | null;
     tabBarIsOpen: boolean;
     setTabBarState: (state: boolean) => void;
+    noteHeightMultiplier: "smaller" | "larger" | null;
   } = $props();
 
   let notes = $state<Note[]>([]);
@@ -88,6 +90,7 @@
       const savedTabId = await store.get<number>('currentTabId') ?? null;
       const savedTabName = await store.get<string>('currentTabName') ?? null;
       const savedOpenStates = await store.get<Record<number, boolean>>('noteOpenStates') ?? {};
+      const savedNoteHeightMultiplier = await store.get<"smaller" | "larger">('noteHeightMultiplier') ?? "smaller";
 
       if (savedTabId !== null && savedTabName !== null && tabs.some(t => t.id === savedTabId && t.name === savedTabName)) {
         try {
@@ -108,6 +111,14 @@
         } catch (error) {
           console.error("Failed to set note states to their previous states:", error);
           setStatus(`Failed to set notes' states to their previous states: ${error}`);
+        }
+      }
+
+      if (savedNoteHeightMultiplier) {
+        try {
+          noteHeightMultiplier = savedNoteHeightMultiplier;
+        } catch (error) {
+          console.error("Failed to set note height multiplier:", error);
         }
       }
     })();
@@ -147,6 +158,14 @@
   $effect(() => {
     if (currentTabId !== null) {
       loadNotes(currentTabId);
+    }
+  });
+
+  $effect(() => {
+    if (noteHeightMultiplier !== null && store) {
+      store.set('noteHeightMultiplier', noteHeightMultiplier);
+      store.save();
+      setStore(store);
     }
   });
 
@@ -539,7 +558,7 @@
       <button id="zoomedNoteCloseBtn" class="primary-button" onclick={closeZoom}>Close without saving</button>
       <ComponentNote
         note={currentTabNotes.find(n => n.id === zoomedNoteId)!}
-        {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
+        {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier}
         reloadNotes={() => loadNotes(currentTabId)}
       ></ComponentNote>
     </div>
@@ -557,6 +576,10 @@
       <button class="primary-button" onclick={addNote} disabled={!currentTabId}>Create Note</button>
       <button class="primary-button" onclick={openLogs}>Open logs</button>
       <button class="primary-button" onclick={backupDatabase}>Backup Database</button>
+      <select bind:value={noteHeightMultiplier} style="margin-left: 0;">
+        <option value="smaller">Smaller</option>
+        <option value="larger">Larger</option>
+      </select>
     </div>
     <div id="searchBarContainer">
       <button id="searchBarBtn" class="primary-button" onclick={searchNotes}>
@@ -595,7 +618,7 @@
           {#each foundNotes as note (note.id)}
             <div style="display: flex; flex: 1 1 0;">
               <ComponentNote
-                {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
+                {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier}
                 reloadNotes={() => loadNotes(currentTabId)}
               ></ComponentNote>
             </div>
@@ -606,7 +629,7 @@
               {#each (previewNotes ?? topLevelNotes) as note (note.id)}
                 <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
                   <ComponentNote
-                    {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
+                    {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier}
                     reloadNotes={() => loadNotes(currentTabId)}
                   ></ComponentNote>
                 </div>
@@ -743,7 +766,7 @@
   margin: 0 50px;
 }
 
-#searchBarBtn, #searchBarCloseBtn {
+#searchBarBtn {
   width: 60px;
   height: 40px;
   background-color: #222;
@@ -764,6 +787,7 @@
   height: 40px;
   border-radius: 50%;
   margin-left: 10px;
+  border: 1px solid #444;
 }
 
 #closeIcon {
@@ -824,7 +848,7 @@
 }
 
 #searchBarInputContainer input:focus {
-  border: 1px solid #723fffd0;
+  outline: 1px solid #723fffd0;
 }
 
 #searchBarBtn:hover, #searchBarCloseBtn:hover {
@@ -998,12 +1022,13 @@
 .zoomedNoteContent .warnMessage {
   position: fixed;
   top: 0;
-  left: 0;
-  right: 0;
+  left: 160px;
+  right: 160px;
   display: flex;
+  word-break: break-all;
   align-items: center;
   justify-self: center;
-  max-height: 24px;
+  max-height: 48px;
   font-size: 14px;
   margin: 0;
   margin-top: 10px;
@@ -1013,8 +1038,10 @@
 }
 
 #zoomedNoteCloseBtn {
+  position: fixed;
+  top: 10px;
+  left: 10px;
   justify-self: center;
-  margin: 5px 0 20px;
   max-width: unset;
   width: 140px;
   max-height: unset;

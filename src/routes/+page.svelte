@@ -29,6 +29,7 @@
   let deleteNoteId = $state<number | null>(null);
   let deleteEventId = $state<number | null>(null);
   let timerNotifBottom = $state<number>(25);
+  let noteHeightMultiplier = $state<"larger" | "smaller" | null>(null);
 
   let displayMinutes = $state(0);
   let displaySeconds = $state(0);
@@ -52,6 +53,7 @@
       store.set('currentTabId', currentTabId);
       store.set('currentTabName', currentTabName);
       store.set('noteOpenStates', noteOpenStates);
+      store.set('noteHeightMultiplier', noteHeightMultiplier);
       store.save();
     }
     showOverlay = true;
@@ -166,7 +168,7 @@
       {:else if currentView === 'calendarView'}
         <CalendarView setStatus={(msg) => (statusBar.textContent = msg)} />
       {:else if currentView === 'notesView'}
-        <NotesView tabBarIsOpen={tabBarIsOpen} setTabBarState={setTabBarState} setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} {noteOpenStates} setStatus={(msg) => (statusBar.textContent = msg)} />
+        <NotesView tabBarIsOpen={tabBarIsOpen} setTabBarState={setTabBarState} setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} {noteOpenStates} setStatus={(msg) => (statusBar.textContent = msg)}  bind:noteHeightMultiplier />
       {:else}
         <div>Home</div>
       {/if}
