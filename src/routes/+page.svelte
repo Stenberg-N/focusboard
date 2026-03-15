@@ -21,7 +21,6 @@
   let noteOpenStates = $state<Record<number, boolean>>({});
   let currentTabId = $state<number | null>(null);
   let currentTabName = $state<string | null>(null);
-  let tabBarIsOpen = $state<boolean>(true);
 
   let store = $state<Store | null>(null);
   let currentView = $state<'timerView' | 'calendarView' | 'notesView' | 'Home'>('Home');
@@ -61,10 +60,8 @@
 
   $effect(() => {
     if (currentView === 'notesView') {
-      if (deleteNoteId && tabBarIsOpen) timerNotifBottom = 210;
-      else if (deleteNoteId) timerNotifBottom = 180;
-      else if (tabBarIsOpen) timerNotifBottom = 55;
-      else timerNotifBottom = 25;
+      if (deleteNoteId) timerNotifBottom = 210;
+      else timerNotifBottom = 55;
     } else {
       if (deleteEventId) timerNotifBottom = 180;
       else timerNotifBottom = 25;
@@ -121,80 +118,74 @@
     store = s;
   }
 
-  function setTabBarState(state: boolean) {
-    tabBarIsOpen = state;
-  }
-
 </script>
 
-<main class="container">
-  {#if showOverlay}
-    <LoaderOverlay />
-  {/if}
+{#if showOverlay}
+  <LoaderOverlay />
+{/if}
 
-  {#if isRunningTimerFinished}
-    <div class="notificationContainer" style="bottom: {timerNotifBottom}px;" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
-      <div class="notificationContent">
-        <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-          <div style="padding-right: 10px;">
-            <p>{setTimerMessage || 'Timer complete!'}</p>
-          </div>
-        </OverlayScrollbarsComponent>
-        <div class="spacer" style="border-bottom: 1px solid #444;"></div>
-        <div class="notificationButtonContainer">
-          <button class="primary-button" onclick={() => isRunningTimerFinished = false}>OK</button>
+{#if isRunningTimerFinished}
+  <div class="notificationContainer" style="bottom: {timerNotifBottom}px;" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+    <div class="notificationContent">
+      <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
+        <div style="padding-right: 10px;">
+          <p>{setTimerMessage || 'Timer complete!'}</p>
         </div>
+      </OverlayScrollbarsComponent>
+      <div class="spacer" style="border-bottom: 1px solid #444;"></div>
+      <div class="notificationButtonContainer">
+        <button class="primary-button" onclick={() => isRunningTimerFinished = false}>OK</button>
       </div>
     </div>
-  {/if}
-
-  <div style="position: fixed; inset: 0; overflow: hidden;">
-    <div id="navigationBar">
-      <button class="primary-button" class:selected={currentView === 'Home'} onclick={() => { currentView = 'Home'; statusBar.textContent = "Home loaded successfully" }}>Home</button>
-      <button class="primary-button" id="noteViewBtn" class:selected={currentView === 'notesView'} onclick={() => currentView = 'notesView'}>
-        <img id="noteIcon" src="note.svg" alt="noteIcon">
-      </button>
-      <button class="primary-button" id="timerViewBtn" class:selected={currentView === 'timerView'} onclick={() => currentView = 'timerView'}>
-        <img id="clockIcon" src="clock.svg" alt="clockIcon">
-      </button>
-      <button class="primary-button" id="calendarViewBtn" class:selected={currentView === 'calendarView'} onclick={() => currentView = 'calendarView'}>
-        <img id="calendarIcon" src="calendar.svg" alt="calendarIcon">
-      </button>
-    </div>
-
-    <div id="Content">
-      {#if currentView === 'timerView'}
-        <TimerView setStatus={(msg) => (statusBar.textContent = msg)} />
-      {:else if currentView === 'calendarView'}
-        <CalendarView setStatus={(msg) => (statusBar.textContent = msg)} />
-      {:else if currentView === 'notesView'}
-        <NotesView tabBarIsOpen={tabBarIsOpen} setTabBarState={setTabBarState} setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} {noteOpenStates} setStatus={(msg) => (statusBar.textContent = msg)}  bind:noteHeightMultiplier />
-      {:else}
-        <div>Home</div>
-      {/if}
-    </div>
-
-    <div id="statusBar">
-      <span bind:this={statusBar}></span>
-    </div>
-
-    <div id="runningTimerContainer">
-      <button id="runningTimerToggle" class:closed={!runningTimerIsOpen} onclick={runningTimerToggle}>
-          <img id="runningTimerArrow" class:pointleft={!runningTimerIsOpen} src="down-arrow.svg" alt="runningTimerToggleIcon">
-      </button>
-      {#if runningTimerIsOpen}
-        <div id="timesContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
-          <div id="runningDisplayMinutes">
-            <p>{displayMinutes.toString().padStart(2, '0')}</p>
-          </div>
-          <div id="runningDisplaySeconds">
-            <p>{displaySeconds.toString().padStart(2, '0')}</p>
-          </div>
-        </div>
-      {/if}
-    </div>
   </div>
-</main>
+{/if}
+
+<div style="position: fixed; inset: 0; overflow: hidden;">
+  <div id="navigationBar">
+    <button class="primary-button" class:selected={currentView === 'Home'} onclick={() => { currentView = 'Home'; statusBar.textContent = "Home loaded successfully" }}>Home</button>
+    <button class="primary-button" id="noteViewBtn" class:selected={currentView === 'notesView'} onclick={() => currentView = 'notesView'}>
+      <img id="noteIcon" src="note.svg" alt="noteIcon">
+    </button>
+    <button class="primary-button" id="timerViewBtn" class:selected={currentView === 'timerView'} onclick={() => currentView = 'timerView'}>
+      <img id="clockIcon" src="clock.svg" alt="clockIcon">
+    </button>
+    <button class="primary-button" id="calendarViewBtn" class:selected={currentView === 'calendarView'} onclick={() => currentView = 'calendarView'}>
+      <img id="calendarIcon" src="calendar.svg" alt="calendarIcon">
+    </button>
+  </div>
+
+  <div id="Content">
+    {#if currentView === 'timerView'}
+      <TimerView setStatus={(msg) => (statusBar.textContent = msg)} />
+    {:else if currentView === 'calendarView'}
+      <CalendarView setStatus={(msg) => (statusBar.textContent = msg)} />
+    {:else if currentView === 'notesView'}
+      <NotesView setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} {noteOpenStates} setStatus={(msg) => (statusBar.textContent = msg)}  bind:noteHeightMultiplier />
+    {:else}
+      <div>Home</div>
+    {/if}
+  </div>
+
+  <div id="statusBar">
+    <span bind:this={statusBar}></span>
+  </div>
+
+  <div id="runningTimerContainer">
+    <button id="runningTimerToggle" class:closed={!runningTimerIsOpen} onclick={runningTimerToggle}>
+        <img id="runningTimerArrow" class:pointleft={!runningTimerIsOpen} src="down-arrow.svg" alt="runningTimerToggleIcon">
+    </button>
+    {#if runningTimerIsOpen}
+      <div id="timesContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+        <div id="runningDisplayMinutes">
+          <p>{displayMinutes.toString().padStart(2, '0')}</p>
+        </div>
+        <div id="runningDisplaySeconds">
+          <p>{displaySeconds.toString().padStart(2, '0')}</p>
+        </div>
+      </div>
+    {/if}
+  </div>
+</div>
 
 <style>
 

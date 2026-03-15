@@ -5,7 +5,6 @@
   import { flip } from 'svelte/animate';
   import { appLogDir } from '@tauri-apps/api/path';
   import { openPath } from '@tauri-apps/plugin-opener';
-  import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import { load } from '@tauri-apps/plugin-store';
   import type { Store } from '@tauri-apps/plugin-store';
   import { dndzone, type DndEvent, dragHandleZone } from 'svelte-dnd-action';
@@ -29,8 +28,6 @@
     setStatus,
     setStore,
     store,
-    tabBarIsOpen = true,
-    setTabBarState,
     noteHeightMultiplier = $bindable(),
   }: {
     currentTabId: number | null;
@@ -41,8 +38,6 @@
     setStatus: (msg: string) => void;
     setStore: (s: Store) => void;
     store: Store | null;
-    tabBarIsOpen: boolean;
-    setTabBarState: (state: boolean) => void;
     noteHeightMultiplier: "smaller" | "larger" | null;
   } = $props();
 
@@ -60,8 +55,6 @@
   let noteType = $state('basic');
   let contextMenu = $state<ContextMenu>()!;
 
-  let previousTabId = $state<number | null>(null);
-  let previousTabName = $state<string | null>(null);
   let editingTabId = $state<number | null>(null);
   let contextTabId = $state<number | null>(null);
   let contextTabName = $state<string | null>(null);
@@ -72,6 +65,7 @@
   let isSearching = $state<boolean>(false);
 
   const flipDurationMs = 200;
+  let windowHeight = $state<number>(0);
 
   onMount(() => {
     void (async () => {
@@ -85,7 +79,6 @@
         setCurrentTabName(newTab.name);
         setStatus("No prior tabs found. Creating tab");
       }
-      setStatus(`Tabs loaded successfully. Loaded the last tab you left on: ${currentTabName}`);
 
       const savedTabId = await store.get<number>('currentTabId') ?? null;
       const savedTabName = await store.get<string>('currentTabName') ?? null;
@@ -125,10 +118,8 @@
   });
 
   $effect(() => {
-    if (currentTabId !== previousTabId && currentTabId !== null && currentTabName !== null && store) {
+    if (currentTabId !== null && currentTabName !== null && store) {
       try {
-        previousTabId = currentTabId;
-        previousTabName = currentTabName;
         store.set('currentTabId', currentTabId);
         store.set('currentTabName', currentTabName);
         store.save();
@@ -167,6 +158,10 @@
       store.save();
       setStore(store);
     }
+  });
+
+  $effect(() => {
+    if (typeof window !== 'undefined') windowHeight = window.innerHeight;
   });
 
   function stripHtml(html: string | undefined): string {
@@ -285,6 +280,8 @@
       tab.name = editingTabName;
       tabs = [...tabs];
       editingTabId = null;
+      setCurrentTabId(tab.id);
+      setCurrentTabName(tab.name);
 
       setStatus(`Updated tab name to ${editingTabName} successfully`);
     } catch (error) {
@@ -500,11 +497,6 @@
     setStatus("Search closed");
   }
 
-  function tabBarToggle() {
-    tabBarIsOpen = !tabBarIsOpen;
-    setTabBarState(tabBarIsOpen);
-  }
-
   function zoomNote(id: number) {
     zoomedNoteId = id;
   }
@@ -535,8 +527,10 @@
 
 </script>
 
+<svelte:window bind:innerHeight={windowHeight} />
+
 {#if deleteNoteId}
-  <div class="notificationContainer" class:enlarged={!tabBarIsOpen} transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
+  <div class="notificationContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
     <div class="notificationContent">
       <div>
         <p>Are you sure you want to delete this note?</p>
@@ -552,13 +546,13 @@
 {/if}
 
 {#if zoomedNoteId}
-  <div role="button" tabindex="0" class="zoomedNoteOverlay" transition:fly={{ y: -100, duration: 200, easing: cubicInOut }} onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeZoom(); }}}>
+  <div role="button" tabindex="0" class="zoomedNoteOverlay" onkeydown={(e) => { if (e.key === 'Escape') { e.preventDefault(); closeZoom(); }}}>
     <div class="zoomedNoteContent">
       <p class="warnMessage">The close button does not save any changes made to the note. Hitting Escape will close the note without saving. Please remember to save the changes in the note edit mode before exiting the zoom.</p>
       <button id="zoomedNoteCloseBtn" class="primary-button" onclick={closeZoom}>Close without saving</button>
       <ComponentNote
         note={currentTabNotes.find(n => n.id === zoomedNoteId)!}
-        {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier}
+        {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier} {windowHeight}
         reloadNotes={() => loadNotes(currentTabId)}
       ></ComponentNote>
     </div>
@@ -569,17 +563,23 @@
   <div id="menuBar">
     <h2>Notes</h2>
     <div id="notesMenuBarControls">
-      <select bind:value={noteType}>
-        <option value="basic">Basic</option>
-        <option value="categorical">Categorical</option>
-      </select>
-      <button class="primary-button" onclick={addNote} disabled={!currentTabId}>Create Note</button>
+      <div style="margin-left: 10px;">
+        <span>Note size</span>
+        <select bind:value={noteHeightMultiplier} style="margin: 0;">
+          <option value="smaller">Normal</option>
+          <option value="larger">Enlarged</option>
+        </select>
+      </div>
+      <div>
+        <span>Note type</span>
+        <select bind:value={noteType} style="margin-left: 0;">
+          <option value="basic">Basic</option>
+          <option value="categorical">Categorical</option>
+        </select>
+      </div>
+      <button class="primary-button" onclick={addNote} disabled={!currentTabId}>Add note</button>
       <button class="primary-button" onclick={openLogs}>Open logs</button>
-      <button class="primary-button" onclick={backupDatabase}>Backup Database</button>
-      <select bind:value={noteHeightMultiplier} style="margin-left: 0;">
-        <option value="smaller">Smaller</option>
-        <option value="larger">Larger</option>
-      </select>
+      <button class="primary-button" onclick={backupDatabase}>Backup database</button>
     </div>
     <div id="searchBarContainer">
       <button id="searchBarBtn" class="primary-button" onclick={searchNotes}>
@@ -601,102 +601,92 @@
     </div>
   </div>
 
-  <div id="middle" class:enlarged={!tabBarIsOpen}>
-    <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark custom'}, overflow: { x: "hidden" } }}>
-      <div id="innerNoteContainer" use:dragHandleZone={{
-        items: previewNotes ?? topLevelNotes,
-        type: 'top-level-note',
-        flipDurationMs: flipDurationMs,
-        dropTargetStyle: {},
-        transformDraggedElement: transformElement,
-        morphDisabled: true,
-        centreDraggedOnCursor: true }}
-        onconsider={handleDndNote}
-        onfinalize={handleDndFinalizeNote}
-      >
-        {#if foundNotes!.length > 0}
-          {#each foundNotes as note (note.id)}
-            <div style="display: flex; flex: 1 1 0;">
-              <ComponentNote
-                {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier}
-                reloadNotes={() => loadNotes(currentTabId)}
-              ></ComponentNote>
-            </div>
-          {/each}
+  <div id="middle">
+    <div id="innerNoteContainer" use:dragHandleZone={{
+      items: previewNotes ?? topLevelNotes,
+      type: 'top-level-note',
+      flipDurationMs: flipDurationMs,
+      dropTargetStyle: {},
+      transformDraggedElement: transformElement,
+      morphDisabled: true,
+      centreDraggedOnCursor: true }}
+      onconsider={handleDndNote}
+      onfinalize={handleDndFinalizeNote}
+    >
+      {#if foundNotes!.length > 0}
+        {#each foundNotes as note (note.id)}
+          <div style="display: flex; flex: 1 1 0;">
+            <ComponentNote
+              {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier} {windowHeight}
+              reloadNotes={() => loadNotes(currentTabId)}
+            ></ComponentNote>
+          </div>
+        {/each}
+      {:else}
+        {#if currentTabNotes.length > 0}
+          {#key topLevelNotes.map(n => n.id).join('-')}
+            {#each (previewNotes ?? topLevelNotes) as note (note.id)}
+              <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
+                <ComponentNote
+                  {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier} {windowHeight}
+                  reloadNotes={() => loadNotes(currentTabId)}
+                ></ComponentNote>
+              </div>
+            {/each}
+          {/key}
         {:else}
-          {#if currentTabId}
-            {#key topLevelNotes.map(n => n.id).join('-')}
-              {#each (previewNotes ?? topLevelNotes) as note (note.id)}
-                <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
-                  <ComponentNote
-                    {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier}
-                    reloadNotes={() => loadNotes(currentTabId)}
-                  ></ComponentNote>
-                </div>
-              {/each}
-            {/key}
-          {:else}
-            <p>No tabs available.</p>
-          {/if}
+          <div style="display: flex; width: 100%; height: 100%; align-items: center; justify-content: center;">
+            <span style="user-select: none; font-size: 24px;">No notes yet.</span>
+          </div>
         {/if}
-      </div>
-    </OverlayScrollbarsComponent>
+      {/if}
+    </div>
   </div>
 
-  {#if tabBarIsOpen}
-    <div id="tabBar" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }} style="z-index: 1;">
-      <button id="buttonAddTab" class="primary-button" onclick={addTab}>Add Tab</button>
-      <div id="tabList" use:dndzone={{
-        items: previewTabs ?? tabs,
-        type: 'tabs',
-        flipDurationMs: flipDurationMs,
-        dropTargetStyle: {},
-        transformDraggedElement: transformElement,
-        morphDisabled: true,
-        centreDraggedOnCursor: true }}
-        onconsider={handleDndTab}
-        onfinalize={handleDndFinalizeTab}
-      >
-        {#key tabs.map(t => t.id).join('-')}
-          {#each (previewTabs ?? tabs) as tab (tab.id)}
-            <button animate:flip={{ duration: flipDurationMs }}
-              role="textbox"
-              tabindex="0"
-              class="tab"
-              class:editing={editingTabId === tab.id}
-              class:selected={currentTabId === tab.id}
-              onclick={() => selectTab(tab.id, tab.name)}
-              ondblclick={() => startRename(tab)}
-              oncontextmenu={(event) => handleContextMenu(tab.id, tab.name, event)}
-            >
-              {#if editingTabId === tab.id}
-                <input
-                  bind:this={inputElement}
-                  bind:value={editingTabName}
-                  onblur={() => saveRename(tab)}
-                  onkeydown={(e) => {
-                    if (e.key === 'Enter') saveRename(tab);
-                    if (e.key === 'Escape') cancelRename();
-                  }}
-                />
-              {:else}
-                {tab.name || 'Untitled'}
-              {/if}
-            </button>
-          {/each}
-        {/key}
-      </div>
+  <div id="tabBar" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }} style="z-index: 1;">
+    <button id="buttonAddTab" class="primary-button" onclick={addTab}>Add Tab</button>
+    <div id="tabList" use:dndzone={{
+      items: previewTabs ?? tabs,
+      type: 'tabs',
+      flipDurationMs: flipDurationMs,
+      dropTargetStyle: {},
+      transformDraggedElement: transformElement,
+      morphDisabled: true,
+      centreDraggedOnCursor: true }}
+      onconsider={handleDndTab}
+      onfinalize={handleDndFinalizeTab}
+    >
+      {#key tabs.map(t => t.id).join('-')}
+        {#each (previewTabs ?? tabs) as tab (tab.id)}
+          <button animate:flip={{ duration: flipDurationMs }}
+            role="textbox"
+            tabindex="0"
+            class="tab"
+            class:editing={editingTabId === tab.id}
+            class:selected={currentTabId === tab.id}
+            onclick={() => selectTab(tab.id, tab.name)}
+            ondblclick={() => startRename(tab)}
+            oncontextmenu={(event) => handleContextMenu(tab.id, tab.name, event)}
+          >
+            {#if editingTabId === tab.id}
+              <input
+                bind:this={inputElement}
+                bind:value={editingTabName}
+                onblur={() => saveRename(tab)}
+                onkeydown={(e) => {
+                  if (e.key === 'Enter') saveRename(tab);
+                  if (e.key === 'Escape') cancelRename();
+                }}
+              />
+            {:else}
+              {tab.name || 'Untitled'}
+            {/if}
+          </button>
+        {/each}
+      {/key}
     </div>
-  {/if}
+  </div>
 </div>
-
-<button id="toggleTabBar" onclick={tabBarToggle} class:enlarged={!tabBarIsOpen}>
-  {#if tabBarIsOpen}
-    <img class="arrowDown-icon" src="down-arrow.svg" alt="arrowDownIcon">
-  {:else}
-    <img class="arrowUp-icon" src="up-arrow.svg" alt="arrowUpIcon">
-  {/if}
-</button>
 
 <ContextMenu bind:this={contextMenu}>
   <Item on:click={onRemoveTab}>Remove Tab</Item>
@@ -721,30 +711,52 @@
   width: 70px;
   margin-left: 15px;
   text-align: left;
+  user-select: none;
 }
 
 #notesMenuBarControls {
   display: flex;
   flex: 1 1 0;
-  max-width: 425px;
+  max-width: 450px;
   flex-direction: row;
   align-items: center;
   gap: 5px;
   user-select: none;
 }
 
+#notesMenuBarControls div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+#notesMenuBarControls span {
+  font-size: 10px;
+  height: 15px;
+  line-height: 1;
+  padding: 2px;
+}
+
+#notesMenuBarControls button {
+  min-width: 73px;
+}
+
 #notesMenuBarControls select {
   background-color: #222;
   color: #f6f6f6;
   height: 40px;
+  min-width: 73px;
   max-width: 100px;
   width: 100%;
   outline: 0;
   border: 0;
   border-radius: 8px;
-  margin-left: 10px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: box-shadow 0.2s;
+  user-select: none;
 }
 
 #notesMenuBarControls select:hover {
@@ -763,7 +775,7 @@
   flex: 1 1 0;
   align-items: center;
   justify-content: left;
-  margin: 0 50px;
+  margin: 0 200px 0 50px;
 }
 
 #searchBarBtn {
@@ -847,10 +859,6 @@
   border-radius: 0 20px 20px 0;
 }
 
-#searchBarInputContainer input:focus {
-  outline: 1px solid #723fffd0;
-}
-
 #searchBarBtn:hover, #searchBarCloseBtn:hover {
   cursor: pointer;
   background-color: #333;
@@ -879,26 +887,21 @@
   bottom: 55px;
 }
 
-.notificationContainer.enlarged {
-  bottom: 25px;
-}
-
-#middle.enlarged {
-  bottom: 20px;
-}
-
 #innerNoteContainer {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  flex: 1 1 0;
-  min-height: 0;
   gap: 10px;
   width: calc(100vw - 85px);
-  padding: 10px;
-  padding-top: 80px;
+  height: 100vh;
+  padding: 80px 10px 10px 16px;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+#innerNoteContainer::-webkit-scrollbar-track {
+  margin-top: 70px;
 }
 
 #tabBar {
@@ -913,24 +916,6 @@
   height: 30px;
   gap: 20px;
   border-top: 1px solid #444;
-}
-
-#toggleTabBar {
-  position: fixed;
-  bottom: 20px;
-  left: 0;
-  width: 85px;
-  height: 30px;
-  background-color: transparent;
-  border: 0;
-  padding: 0;
-  transition: transform 0.2s, bottom 200ms cubic-bezier(0.645, 0.045, 0.355, 1.000);
-  transition-delay: 100ms;
-}
-
-#toggleTabBar:hover {
-  background-color: #333;
-  cursor: pointer;
 }
 
 #buttonAddTab {
@@ -1006,8 +991,7 @@
   bottom: 20px;
   width: 100vw;
   height: 100vh - 20px;
-  background-color: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(15px);
+  background-color: #0f0f0f;
 }
 
 .zoomedNoteContent {
@@ -1017,6 +1001,7 @@
   height: 80%;
   margin: auto;
   overflow: auto;
+  padding: 20px;
 }
 
 .zoomedNoteContent .warnMessage {
@@ -1047,27 +1032,6 @@
   max-height: unset;
   height: 45px;
   border-radius: 6px;
-}
-
-.arrowUp-icon, .arrowDown-icon {
-  display: flex;
-  justify-self: center;
-  height: 19px;
-  width: 40px;
-  filter: brightness(0) invert(0.7);
-  transition: transform 0.2s;
-  user-select: none;
-}
-
-.arrowUp-icon:hover, .arrowDown-icon:hover {
-  transform: scale(1.1) translateY(-1px);
-}
-
-:global {
-  .os-theme-dark.custom .os-scrollbar-track {
-    margin-top: 70px;
-    height: calc(100% - 70px);
-  }
 }
 
 </style>

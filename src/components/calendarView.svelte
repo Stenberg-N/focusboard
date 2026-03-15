@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { invoke } from '@tauri-apps/api/core';
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-svelte';
   import debounce from 'lodash/debounce';
@@ -53,18 +53,18 @@
   let addEventContainerHeight = $state<number>(0);
   let isOpen = $state<boolean>(false);
 
-  let editEventNameInput = $state<HTMLInputElement>();
-  let editEventStartHours = $state<number>(0);
-  let editEventStartMinutes = $state<number>(0);
-  let editEventEndHours = $state<number>(0);
-  let editEventEndMinutes = $state<number>(0);
+  let editEventNameInput = $state<HTMLInputElement | null>(null);
+  let editEventStartHoursInput = $state<HTMLInputElement | null>(null);
+  let editEventStartMinutesInput = $state<HTMLInputElement | null>(null);
+  let editEventEndHoursInput = $state<HTMLInputElement | null>(null);
+  let editEventEndMinutesInput = $state<HTMLInputElement | null>(null);
 
-  let eventNameInput = $state<HTMLInputElement>();
+  let eventNameInput = $state<HTMLInputElement | null>(null);
   let addEventSelectedDay = $state<number>(1);
-  let eventStartHours = $state<number>(0);
-  let eventStartMinutes = $state<number>(0);
-  let eventEndHours = $state<number>(0);
-  let eventEndMinutes = $state<number>(0);
+  let eventStartHoursInput = $state<HTMLInputElement | null>(null);
+  let eventStartMinutesInput = $state<HTMLInputElement | null>(null);
+  let eventEndHoursInput = $state<HTMLInputElement | null>(null);
+  let eventEndMinutesInput = $state<HTMLInputElement | null>(null);
 
   let {
     setStatus,
@@ -119,11 +119,11 @@
 
     let monthAbbreviation = monthNames[month].slice(0, 3);
     let nextMonthAbbreviation = monthNames[(month+1)%12].slice(0, 3);
-    var firstDay = new Date(year, month, 1).getDay();
+    let firstDay = new Date(year, month, 1).getDay();
     let offset = firstDay === 0 ? 6 : firstDay - 1;
-    var daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
-    var daysInLastMonth = new Date(year, month, 0).getDate();
-    var previousMonth = month == 0 ? 11 : month - 1;
+    let daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+    let daysInLastMonth = new Date(year, month, 0).getDate();
+    let previousMonth = month == 0 ? 11 : month - 1;
 
     for (let i = daysInLastMonth - offset; i < daysInLastMonth; i++) {
       let day = new Date(previousMonth == 11 ? year - 1 : year, previousMonth, i+1);
@@ -150,12 +150,15 @@
   function startEdit(event: CalendarEvent) {
     eventInEdit = event;
 
-    editEventStartHours = Math.floor(eventInEdit.event_start / 3600);
-    editEventStartMinutes = Math.floor((eventInEdit.event_start % 3600) / 60);
-    editEventEndHours = Math.floor(eventInEdit.event_end / 3600);
-    editEventEndMinutes = Math.floor((eventInEdit.event_end % 3600) / 60);
-
-    setStatus("Edit started");
+    tick().then(() => {
+      if (editEventStartHoursInput && editEventStartMinutesInput && editEventEndHoursInput && editEventEndMinutesInput) {
+        editEventStartHoursInput.value = String(Math.floor(eventInEdit!.event_start / 3600));
+        editEventStartMinutesInput.value = String(Math.floor((eventInEdit!.event_start % 3600) / 60));
+        editEventEndHoursInput.value = String(Math.floor(eventInEdit!.event_end / 3600));
+        editEventEndMinutesInput.value = String(Math.floor((eventInEdit!.event_end % 3600) / 60));
+      }
+      setStatus("Edit started");
+    });
   }
 
   async function updateEvent() {
@@ -165,8 +168,8 @@
         return;
       }
 
-      let timeStart = (editEventStartHours * 3600) + (editEventStartMinutes * 60);
-      let timeEnd = (editEventEndHours * 3600) + (editEventEndMinutes * 60);
+      let timeStart = (Number(editEventStartHoursInput?.value) * 3600) + (Number(editEventStartMinutesInput?.value) * 60);
+      let timeEnd = (Number(editEventEndHoursInput?.value) * 3600) + (Number(editEventEndMinutesInput?.value) * 60);
 
       if (timeStart > timeEnd) {
         setStatus("Invalid event start and/or end times");
@@ -215,8 +218,8 @@
       }
 
       let randomColor = colors[Math.floor(Math.random() * colors.length)];
-      let timeStart = (eventStartHours * 3600) + (eventStartMinutes * 60);
-      let timeEnd = (eventEndHours * 3600) + (eventEndMinutes * 60);
+      let timeStart = (Number(eventStartHoursInput?.value) * 3600) + (Number(eventStartMinutesInput?.value) * 60);
+      let timeEnd = (Number(eventEndHoursInput?.value) * 3600) + (Number(eventEndMinutesInput?.value) * 60);
 
       if (!selectedDate) {
         eventToSave = `${year}-${String(month + 1).padStart(2, '0')}-${String(addEventSelectedDay).padStart(2, '0')}`;
@@ -228,16 +231,19 @@
         setStatus("Invalid event start and/or end times");
         return;
       } else {
+        if (eventStartHoursInput && eventStartMinutesInput && eventEndHoursInput && eventEndMinutesInput && eventNameInput) {
         await invoke('insert_event', { eventDate: eventToSave, yearMonth: yearMonth, eventName: eventNameInput?.value, eventStart: timeStart, eventEnd: timeEnd, color: randomColor });
         await getEvents();
 
-        eventStartHours = 0;
-        eventStartMinutes = 0;
-        eventEndHours = 0;
-        eventEndMinutes = 0;
-        eventNameInput!.value = '';
+        eventStartHoursInput.value = '';
+        eventStartMinutesInput.value = '';
+        eventEndHoursInput.value = '';
+        eventEndMinutesInput.value = '';
+        eventNameInput.value = '';
+        addEventSelectedDay = 1;
 
         setStatus("Added event successfully");
+        }
       }
 
     } catch (error) {
@@ -303,6 +309,30 @@
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     return `${hours}:${String(minutes).padStart(2, '0')}`
   }
+
+  function handleTimeInput(command: string, target: HTMLInputElement, value: string) {
+    if (!target || !value) return;
+
+    const sanitized = value.replace(/[^0-9]/g, '');
+  
+    if (!/^\d{0,2}$/.test(sanitized) || (sanitized === '')) { target.value = sanitized; return; }
+
+    let num = Number(sanitized);
+    let currentValue = num;
+
+    switch(command) {
+      case 'hours':
+        currentValue = Math.max(0, Math.min(23, num));
+        break;
+      case 'minutes':
+        currentValue = Math.max(0, Math.min(59, num));
+        break;
+      default:
+        return;
+    }
+
+    if (sanitized !== currentValue.toString()) target.value = currentValue.toString();
+  }
 </script>
 
 {#if deleteEventId}
@@ -353,15 +383,15 @@
               <div class="eventStartTimesContainer" class:noRaise={isOpen}>
                 <p>Event start</p>
                 <div class="eventInputContainer">
-                  <input type="number" bind:value={eventStartHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventStartHours = 23; if (value < 0) eventStartHours = 0; }} />
-                  <input type="number" bind:value={eventStartMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) eventStartMinutes = 59; if (value < 0) eventStartMinutes = 0; }} />
+                  <input type="text" inputmode="numeric" maxlength="2" placeholder="00" bind:this={eventStartHoursInput} oninput={(e) => { const target = e.target as HTMLInputElement; handleTimeInput('hours', target, target.value); }} />
+                  <input type="text" inputmode="numeric" maxlength="2" placeholder="00" bind:this={eventStartMinutesInput} oninput={(e) => { const target = e.target as HTMLInputElement; handleTimeInput('minutes', target, target.value); }} />
                 </div>
               </div>
               <div class="eventEndTimesContainer">
                 <p>Event end</p>
                 <div class="eventInputContainer">
-                  <input type="number" bind:value={eventEndHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) eventEndHours = 23; if (value < 0) eventEndHours = 0; }} />
-                  <input type="number" bind:value={eventEndMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) eventEndMinutes = 59; if (value < 0) eventEndMinutes = 0; }} />
+                  <input type="text" inputmode="numeric" maxlength="2" placeholder="00" bind:this={eventEndHoursInput} oninput={(e) => { const target = e.target as HTMLInputElement; handleTimeInput('hours', target, target.value); }} />
+                  <input type="text" inputmode="numeric" maxlength="2" placeholder="00" bind:this={eventEndMinutesInput} oninput={(e) => { const target = e.target as HTMLInputElement; handleTimeInput('minutes', target, target.value); }} />
                 </div>
               </div>
             </div>
@@ -389,15 +419,15 @@
               <div class="eventStartTimesContainer">
                 <p>Event start</p>
                 <div class="eventInputContainer">
-                  <input type="number" bind:value={editEventStartHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) editEventStartHours = 23; if (value < 0) editEventStartHours = 0; }} />
-                  <input type="number" bind:value={editEventStartMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) editEventStartMinutes = 59; if (value < 0) editEventStartMinutes = 0; }} />
+                  <input type="text" inputmode="numeric" maxlength="2" placeholder="00" bind:this={editEventStartHoursInput} oninput={(e) => { const target = e.target as HTMLInputElement; handleTimeInput('hours', target, target.value); }} />
+                  <input type="text" inputmode="numeric" maxlength="2" placeholder="00" bind:this={editEventStartMinutesInput} oninput={(e) => { const target = e.target as HTMLInputElement; handleTimeInput('minutes', target, target.value); }} />
                 </div>
               </div>
               <div class="eventEndTimesContainer">
                 <p>Event end</p>
                 <div class="eventInputContainer">
-                  <input type="number" bind:value={editEventEndHours} min="0" max="23" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 23) editEventEndHours = 23; if (value < 0) editEventEndHours = 0; }} />
-                  <input type="number" bind:value={editEventEndMinutes} min="0" max="59" oninput={(e) => { const target = e.target as HTMLInputElement; const value = Number(target.value); if (value > 59) editEventEndMinutes = 59; if (value < 0) editEventEndMinutes = 0; }} />
+                  <input type="text" inputmode="numeric" maxlength="2" placeholder="00" bind:this={editEventEndHoursInput} oninput={(e) => { const target = e.target as HTMLInputElement; handleTimeInput('hours', target, target.value); }} />
+                  <input type="text" inputmode="numeric" maxlength="2" placeholder="00" bind:this={editEventEndMinutesInput} oninput={(e) => { const target = e.target as HTMLInputElement; handleTimeInput('minutes', target, target.value); }} />
                 </div>
               </div>
             </div>
@@ -894,7 +924,7 @@
     font-weight: 800;
   }
 
-  .eventStartEndContainer .eventInputContainer input[type="number"]::-webkit-outer-spin-button, .eventStartEndContainer .eventInputContainer input[type="number"]::-webkit-inner-spin-button {
+  .eventStartEndContainer .eventInputContainer input[type="text"]::-webkit-outer-spin-button, .eventStartEndContainer .eventInputContainer input[type="text"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
   }
