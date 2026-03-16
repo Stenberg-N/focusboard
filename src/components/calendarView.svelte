@@ -333,6 +333,21 @@
 
     if (sanitized !== currentValue.toString()) target.value = currentValue.toString();
   }
+
+  function clickOutside(node: HTMLElement) {
+    const handleClick = (event: MouseEvent) => {
+      if (isOpen && node && !node.contains(event.target as Node)) {
+        isOpen = false;
+      }
+    };
+    document.addEventListener('click', handleClick, true);
+
+    return {
+      destroy() {
+        document.removeEventListener('click', handleClick, true);
+      }
+    };
+  }
 </script>
 
 {#if deleteEventId}
@@ -363,8 +378,8 @@
               <input bind:this={eventNameInput} />
             </div>
             {#if !selectedDate}
-              <div id="addEventSelectDayContainer" class:noRaise={isOpen}>
-                <button id="selectedDay" class="primary-button" class:listOpen={isOpen} onclick={() => {isOpen = !isOpen}}>{addEventSelectedDay}</button>
+              <div id="addEventSelectDayContainer" class:noRaise={isOpen} use:clickOutside>
+                <button id="selectedDay" class="primary-button" class:listOpen={isOpen} onclick={() => {setTimeout(() => { isOpen = !isOpen }, 300) }}>{addEventSelectedDay}</button>
                   {#if isOpen}
                     <div id="addEventSelectDayList" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }}>
                       <div style="overflow-y: auto; overflow-x: hidden;">
@@ -444,7 +459,7 @@
 
 <div id="eventList">
   {#if eventsMap.size <= 0}
-    <span style="font-size: 18px; font-weight: bold;">No events yet</span>
+    <span style="font-size: 18px; font-weight: bold; user-select: none;">No events yet</span>
   {:else}
     <VirtualList items={selectedDate ? eventsMap.get(selectedDate) ?? [] : (Array.from(eventsMap.values()).flat() || [])} let:item>
       <div class="listedEvent">
@@ -541,6 +556,7 @@
     height: calc(100vh - 90px);
     background-color: transparent;
     padding: 12px;
+    user-select: none;
   }
 
   #calendarControls {
@@ -555,6 +571,7 @@
     font-size: 24px;
     font-weight: 800;
     border-bottom: 1px solid #444;
+    user-select: none;
   }
 
   #date {
@@ -994,6 +1011,7 @@
 
   .eventStartTimesContainer.noRaise, #addEventSelectDayContainer.noRaise {
     transform: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   }
 
   .dayOption {

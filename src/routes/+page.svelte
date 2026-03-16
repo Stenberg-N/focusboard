@@ -36,6 +36,7 @@
   let timerNotifBottom = $state<number>(25);
   let noteHeightMultiplier = $state<"larger" | "smaller" | null>(null);
   let noteColumns = $state<number | null>(null);
+  let noteGap = $state<number | null>(null);
   let runningTimerIsOpen = $derived(uiVisibility.runningTimer);
 
   let displayMinutes = $state(0);
@@ -87,6 +88,7 @@
       store.set('currentTabName', currentTabName);
       store.set('noteHeightMultiplier', noteHeightMultiplier);
       store.set('noteColumns', noteColumns);
+      store.set('noteGap', noteGap);
       store.save();
     }
     showOverlay = true;
@@ -163,7 +165,7 @@
     {:else if currentView === 'calendarView'}
       <CalendarView setStatus={(msg) => (statusBar.textContent = msg)} />
     {:else if currentView === 'notesView'}
-      <NotesView setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} setStatus={(msg) => (statusBar.textContent = msg)} bind:noteHeightMultiplier bind:noteColumns />
+      <NotesView setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} setStatus={(msg) => (statusBar.textContent = msg)} bind:noteHeightMultiplier bind:noteColumns bind:noteGap />
     {:else}
       <div>Home</div>
     {/if}

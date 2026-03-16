@@ -29,6 +29,7 @@
     store,
     noteHeightMultiplier = $bindable(),
     noteColumns = $bindable(),
+    noteGap = $bindable(),
   }: {
     currentTabId: number | null;
     setCurrentTabId: (id: number | null) => void;
@@ -39,6 +40,7 @@
     store: Store | null;
     noteHeightMultiplier: "smaller" | "larger" | null;
     noteColumns: number | null;
+    noteGap: number | null;
   } = $props();
 
   let notes = $state<Note[]>([]);
@@ -83,6 +85,7 @@
       const savedTabName = await store.get<string>('currentTabName') ?? null;
       const savedNoteHeightMultiplier = await store.get<"smaller" | "larger">('noteHeightMultiplier') ?? "smaller";
       const savedNoteColumns = await store.get<number | null>('noteColumns') ?? 4;
+      const savedNoteGap = await store.get<number | null>('noteGap') ?? 1;
 
       if (savedTabId !== null && savedTabName !== null && tabs.some(t => t.id === savedTabId && t.name === savedTabName)) {
         try {
@@ -108,6 +111,14 @@
           noteColumns = savedNoteColumns;
         } catch (error) {
           console.error("Failed to set note columns:", error);
+        }
+      }
+
+      if (savedNoteGap) {
+        try {
+          noteGap = savedNoteGap;
+        } catch (error) {
+          console.log("Failed to set note gap:", error);
         }
       }
     })();
@@ -150,11 +161,20 @@
   });
 
   $effect(() => {
+    if (noteGap !== null && store) {
+      store.set('noteGap', noteGap);
+      store.save;
+      setStore(store);
+    }
+  });
+
+  $effect(() => {
     if (typeof window !== 'undefined') windowHeight = window.innerHeight;
   });
 
   $effect(() => {
-    if (noteHeightMultiplier === 'smaller') noteRowHeight = (windowHeight - 150) / 2;
+    
+    if (noteHeightMultiplier === 'smaller' && noteGap) noteRowHeight = (windowHeight - (140 + (10 * noteGap))) / 2;
     else if (noteHeightMultiplier === 'larger') noteRowHeight = windowHeight - 140;
   });
 
@@ -556,21 +576,27 @@
   <div id="menuBar">
     <h2>Notes</h2>
     <div id="notesMenuBarControls">
-      <div style="margin-left: 10px;">
-        <span>Note size</span>
+      <div style="margin-left: 10px; min-width: 70px;">
+        <span>Height</span>
         <select bind:value={noteHeightMultiplier} style="margin: 0;">
           <option value="smaller">Normal</option>
-          <option value="larger">Enlarged</option>
+          <option value="larger">Larger</option>
         </select>
       </div>
-      <div>
-        <span>Note columns</span>
+      <div style="min-width: 30px;">
+        <span>Columns</span>
         <select bind:value={noteColumns} style="margin: 0;">
-          <option value=2>2</option>
-          <option value=3>3</option>
-          <option value=4>4</option>
-          <option value=5>5</option>
-          <option value=6>6</option>
+          {#each Array.from({ length: 5}, (_, i) => i) as index}
+            <option value={index+1}>{index+1}</option>
+          {/each}
+        </select>
+      </div>
+      <div style="min-width: 30px;">
+        <span>Gap size</span>
+        <select bind:value={noteGap} style="margin: 0;">
+          {#each Array.from({ length: 4}, (_, i) => i) as index}
+            <option value={index+1}>{index+1}0</option>
+          {/each}
         </select>
       </div>
       <button class="primary-button" onclick={addNote} disabled={!currentTabId}>Add note</button>
@@ -598,7 +624,7 @@
   </div>
 
   <div id="middle">
-    <div id="innerNoteContainer" style="grid-auto-rows: {noteRowHeight}px; grid-template-columns: repeat({noteColumns}, minmax(180px, 1fr));" use:dragHandleZone={{
+    <div id="innerNoteContainer" style="grid-auto-rows: {noteRowHeight}px; grid-template-columns: repeat({noteColumns}, minmax(312px, 1fr)); gap: {10 * noteGap!}px;" use:dragHandleZone={{
       items: previewNotes ?? topLevelNotes,
       flipDurationMs: flipDurationMs,
       dropTargetStyle: {},
@@ -630,7 +656,7 @@
             {/each}
           {/key}
         {:else}
-          <div style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;">
+          <div style="position: fixed; inset: 70px 0 50px 85px; display: flex; align-items: center; justify-content: center;">
             <span style="user-select: none; font-size: 24px;">No notes yet.</span>
           </div>
         {/if}
@@ -743,7 +769,6 @@
   background-color: #222;
   color: #f6f6f6;
   height: 40px;
-  min-width: 73px;
   max-width: 100px;
   width: 100%;
   outline: 0;
@@ -770,7 +795,7 @@
   flex: 1 1 0;
   align-items: center;
   justify-content: left;
-  margin: 0 200px 0 50px;
+  margin: 0 175px 0 25px;
 }
 
 #searchBarBtn {
@@ -850,7 +875,7 @@
   height: 100%;
   padding-left: 10px;
   color: #f6f6f6;
-  font-size: 18px;
+  font-size: 16px;
   border-radius: 0 20px 20px 0;
 }
 
@@ -882,7 +907,6 @@
 
 #innerNoteContainer {
   display: grid;
-  gap: 10px;
   width: calc(100vw - 85px);
   height: 100vh;
   padding: 80px 10px 10px 16px;

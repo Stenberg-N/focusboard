@@ -14,7 +14,9 @@
       {
         "title": "FocusBoard",
         "width": 1700,
-        "height": 1000
+        "height": 1000,
+        "minWidth": 1000,
+        "minHeight": 600
       }
     ],
     "security": {

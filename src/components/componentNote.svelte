@@ -347,7 +347,7 @@
   padding: 18px 4px;
   min-height: 100%;
   height: 100%;
-  min-width: 180px;
+  min-width: 312px;
   width: 100%;
   box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.2s, box-shadow 0.2s;
