@@ -583,7 +583,7 @@
           <option value="larger">Larger</option>
         </select>
       </div>
-      <div style="min-width: 30px;">
+      <div style="min-width: 38px;">
         <span>Columns</span>
         <select bind:value={noteColumns} style="margin: 0;">
           {#each Array.from({ length: 5}, (_, i) => i) as index}
@@ -591,7 +591,7 @@
           {/each}
         </select>
       </div>
-      <div style="min-width: 30px;">
+      <div style="min-width: 38px;">
         <span>Gap size</span>
         <select bind:value={noteGap} style="margin: 0;">
           {#each Array.from({ length: 4}, (_, i) => i) as index}
@@ -600,21 +600,19 @@
         </select>
       </div>
       <button class="primary-button" onclick={addNote} disabled={!currentTabId}>Add note</button>
-      <button class="primary-button" onclick={openLogs}>Open logs</button>
+      <button class="primary-button" onclick={openLogs}>Logs</button>
       <button class="primary-button" onclick={backupDatabase}>Backup database</button>
     </div>
     <div id="searchBarContainer">
       <button id="searchBarBtn" class="primary-button" onclick={searchNotes}>
         <img id="searchIcon" src="search.svg" alt="searchIcon">
       </button>
-      <div id="searchBarInputContainer">
-        <input id="searchBarInput" bind:this={searchInput} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchNotes(); } if (e.key === 'Escape') { e.preventDefault(); closeNotesSearch(); }}}>
-        {#if !isSearching}
-          <button onclick={() => {searchInput!.value = ''; searchable = null; setStatus("Search cleared") }}>
-            <img id="clearSearchIcon" src="close.svg" alt="clearSearchIcon">
-          </button>
-        {/if}
-      </div>
+      <input id="searchBarInput" bind:this={searchInput} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchNotes(); } if (e.key === 'Escape') { e.preventDefault(); closeNotesSearch(); }}}>
+      {#if !isSearching}
+        <button id="clearSearchBtn" class="primary-button" onclick={() => {searchInput!.value = ''; searchable = null; setStatus("Search cleared") }}>
+          <img id="clearSearchIcon" src="close.svg" alt="clearSearchIcon">
+        </button>
+      {/if}
       {#if foundNotes!.length > 0}
         <button id="searchBarCloseBtn" class="primary-button" transition:fly={{ y: -100, duration: 200, easing: cubicInOut }} onclick={closeNotesSearch}>
           <img id="closeIcon" src="close.svg" alt="CloseIcon">
@@ -790,11 +788,16 @@
 }
 
 #searchBarContainer {
+  position: relative;
   display: flex;
   flex-direction: row;
-  flex: 1 1 0;
+  align-self: center;
   align-items: center;
   justify-content: left;
+  max-width: 500px;
+  width: 100%;
+  max-height: 40px;
+  height: 100%;
   margin: 0 175px 0 25px;
 }
 
@@ -829,37 +832,27 @@
   user-select: none;
 }
 
-#searchBarInputContainer {
-  display: flex;
-  flex-direction: row;
-  flex: 1 1 0;
-  align-items: center;
-  background-color: #222;
-  max-width: 500px;
-  width: 100%;
-  height: 40px;
-  border: 1px solid #444;
-  border-radius: 0 20px 20px 0;
-  outline: none;
-}
-
-#searchBarInputContainer button, input {
-  background-color: transparent;
+#clearSearchBtn, #searchBarInput {
   border: 0;
   outline: 0;
 }
 
-#searchBarInputContainer button {
+#clearSearchBtn {
+  position: absolute;
+  top: 50%;
+  right: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 10px;
   width: 10px;
-  margin: 0 20px;
-  padding: 0;
+  background-color: transparent;
+  box-shadow: none;
+  transform: translateY(-50%);
 }
 
 #clearSearchIcon {
+  position: relative;
   height: 10px;
   width: 10px;
   filter: brightness(0) invert(0.7);
@@ -870,13 +863,19 @@
   filter: brightness(0) invert(0.9);
 }
 
-#searchBarInputContainer input {
+#searchBarInput {
   width: 100%;
   height: 100%;
   padding-left: 10px;
+  background: #222;
+  border: 1px solid #444;
   color: #f6f6f6;
   font-size: 16px;
   border-radius: 0 20px 20px 0;
+}
+
+#searchBarInput:focus {
+  border-color: #723fffd0;
 }
 
 #searchBarBtn:hover, #searchBarCloseBtn:hover {

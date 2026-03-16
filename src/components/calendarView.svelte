@@ -66,6 +66,11 @@
   let eventEndHoursInput = $state<HTMLInputElement | null>(null);
   let eventEndMinutesInput = $state<HTMLInputElement | null>(null);
 
+  let eventSearchInput = $state<HTMLInputElement | null>(null);
+  let searchable = $state<string | null>(null);
+  let isSearching = $state<boolean>(false);
+  let foundEvents = $derived.by(() => { return events.filter(e => e.event_name.toLowerCase() === searchable?.trim().toLowerCase()) });
+
   let {
     setStatus,
   }: {
@@ -348,6 +353,26 @@
       }
     };
   }
+
+  function searchEvents() {
+    if (!eventSearchInput) return;
+    isSearching = true;
+    searchable = eventSearchInput.value;
+
+    if (foundEvents.length <= 0) { setStatus('No matches found'); isSearching = false; }
+    else if (foundEvents.length > 0) setStatus('Search completed');
+  }
+
+  function closeEventSearch() {
+    if (!eventSearchInput) return;
+
+    isSearching = false;
+    searchable = null;
+    eventSearchInput.value = '';
+    foundEvents = [];
+
+    setStatus("Search closed");
+  }
 </script>
 
 {#if deleteEventId}
@@ -379,7 +404,7 @@
             </div>
             {#if !selectedDate}
               <div id="addEventSelectDayContainer" class:noRaise={isOpen} use:clickOutside>
-                <button id="selectedDay" class="primary-button" class:listOpen={isOpen} onclick={() => {setTimeout(() => { isOpen = !isOpen }, 300) }}>{addEventSelectedDay}</button>
+                <button id="selectedDay" class="primary-button" class:listOpen={isOpen} onclick={() => { isOpen = !isOpen }}>{addEventSelectedDay}</button>
                   {#if isOpen}
                     <div id="addEventSelectDayList" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }}>
                       <div style="overflow-y: auto; overflow-x: hidden;">
@@ -458,10 +483,15 @@
 {/if}
 
 <div id="eventList">
+  <div id="eventSearchBar" style="position: relative; display: flex; flex-direction: row; height: 40px; width: 100%;">
+    <button id="searchBarBtn" class="primary-button" onclick={() => searchEvents()}><img src="search.svg" alt="icon"></button>
+      <input id="searchBar" bind:this={eventSearchInput} onkeydown={(e) => { if (e.key === 'Enter') { searchEvents(); } if (e.key === 'Escape') { closeEventSearch(); }}} />
+      <button id="stopSearchBtn" class="primary-button" onclick={() => closeEventSearch()}><img src="close.svg" alt="icon"></button>
+  </div>
   {#if eventsMap.size <= 0}
     <span style="font-size: 18px; font-weight: bold; user-select: none;">No events yet</span>
   {:else}
-    <VirtualList items={selectedDate ? eventsMap.get(selectedDate) ?? [] : (Array.from(eventsMap.values()).flat() || [])} let:item>
+    <VirtualList items={searchable && foundEvents.length > 0 ? foundEvents : (selectedDate ? eventsMap.get(selectedDate) ?? [] : (Array.from(eventsMap.values()).flat() || []))} let:item>
       <div class="listedEvent">
         <div class="listedEventInfo" style="background-color: {item.color}; color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">
           <div class="eventName">
@@ -1023,6 +1053,65 @@
 
   .dayOption:hover {
     transform: translateY(-2px);
+  }
+
+  #searchBar {
+    width: 100%;
+    margin-right: 11px;
+    outline: none;
+    border: none;
+    background-color: #222;
+    border-radius: 0 20px 20px 0;
+    border: 1px solid #444;
+    color: #f6f6f6;
+    font-size: 16px;
+    padding-left: 5px;
+  }
+
+  #searchBar:focus {
+    border-color: #723fffd0;
+  }
+
+  #searchBarBtn {
+    max-width: 40px;
+    border-radius: 20px 0 0 20px;
+    border: 1px solid #444;
+    border-right: none;
+  }
+
+  #searchBarBtn img {
+    width: 20px;
+    height: 20px;
+    filter: brightness(0) invert(0.7);
+  }
+
+  #searchBarBtn:hover {
+    transform: unset;
+  }
+
+  #stopSearchBtn {
+    position: absolute;
+    top: 50%;
+    right: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 10px;
+    height: 10px;
+    background-color: transparent;
+    box-shadow: none;
+    transform: translateY(-50%); 
+  }
+
+  #stopSearchBtn img {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    filter: brightness(0) invert(0.7);
+  }
+
+  #stopSearchBtn img:hover {
+    filter: brightness(0) invert(0.9);
   }
 
   @keyframes openList {
