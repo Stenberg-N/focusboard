@@ -202,10 +202,10 @@
           <div class="timerControls">
             <button class="timerButton primary-button" onclick={setTimer}>Save</button>
             <button class="timerButton primary-button" onclick={increase}>
-              <img id="timeUp-icon" src="up-arrow.svg" alt="upArrow">
+              <img id="timeUp-icon" src="arrow.svg" alt="upArrow">
             </button>
             <button class="timerButton primary-button" onclick={decrease}>
-              <img id="timeDown-icon" src="down-arrow.svg" alt="downArrow">
+              <img id="timeDown-icon" style="transform: rotate(-180deg);" src="arrow.svg" alt="downArrow">
             </button>
             <button class="timerButton primary-button" onclick={cancelEdit}>Cancel</button>
           </div>

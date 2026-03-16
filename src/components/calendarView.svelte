@@ -443,31 +443,35 @@
 {/if}
 
 <div id="eventList">
-  <VirtualList items={selectedDate ? eventsMap.get(selectedDate) ?? [] : (Array.from(eventsMap.values()).flat() || [])} let:item>
-    <div class="listedEvent">
-      <div class="listedEventInfo" style="background-color: {item.color}; color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">
-        <div class="eventName">
-          <p class:sliding={item.event_name.length >= 12}>{item.event_name}</p>
+  {#if eventsMap.size <= 0}
+    <span style="font-size: 18px; font-weight: bold;">No events yet</span>
+  {:else}
+    <VirtualList items={selectedDate ? eventsMap.get(selectedDate) ?? [] : (Array.from(eventsMap.values()).flat() || [])} let:item>
+      <div class="listedEvent">
+        <div class="listedEventInfo" style="background-color: {item.color}; color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">
+          <div class="eventName">
+            <p class:sliding={item.event_name.length >= 12}>{item.event_name}</p>
+          </div>
+          <div class="spacer"></div>
+          <p>{secondsToHoursMinutes(item.event_start)}-{secondsToHoursMinutes(item.event_end)}</p>
         </div>
         <div class="spacer"></div>
-        <p>{secondsToHoursMinutes(item.event_start)}-{secondsToHoursMinutes(item.event_end)}</p>
+        <div class="listedEventControls">
+          <button class="primary-button" onclick={() => { deleteEventId = item.id; setDeleteEventId(item.id); }}>Delete</button>
+          <button class="primary-button" onclick={() => {startEdit(item); }}>Edit</button>
+        </div>
       </div>
-      <div class="spacer"></div>
-      <div class="listedEventControls">
-        <button class="primary-button" onclick={() => { deleteEventId = item.id; setDeleteEventId(item.id); }}>Delete</button>
-        <button class="primary-button" onclick={() => {startEdit(item); }}>Edit</button>
-      </div>
-    </div>
-  </VirtualList>
+    </VirtualList>
+  {/if}
 </div>
 
 <div id="calendarView">
   <div id="calendarControls">
     <button class="primary-button" style="background-color: transparent;" onclick={() => selectedDate ? prevDay() : prevMonth() }>
-      <img id="prevArrowIcon" src="down-arrow.svg" alt="prevArrow">
+      <img id="prevArrowIcon" src="arrow.svg" alt="prevArrow">
     </button>
     <button class="primary-button" style="background-color: transparent;" onclick={() => selectedDate ? nextDay() : nextMonth() }>
-      <img id="nextArrowIcon" src="down-arrow.svg" alt="nextArrow">
+      <img id="nextArrowIcon" src="arrow.svg" alt="nextArrow">
     </button>
     {#if selectedDate}
       <p id="date">{selectedDateClean}</p>

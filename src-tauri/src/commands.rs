@@ -16,9 +16,7 @@ pub struct Note {
     pub title: String,
     pub content: String,
     pub tab_id: Option<i64>,
-    pub parent_id: Option<i64>,
     pub order_id: Option<i64>,
-    pub note_type: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -100,16 +98,13 @@ pub async fn create_note(
     title: String,
     content: String,
     tab_id: Option<i64>,
-    parent_id: Option<i64>,
-    note_type: String,
 ) -> Result<Note, String> {
     let row: Option<(Option<i64>,)> = sqlx::query_as(
         r#"
-        SELECT MAX(order_id) FROM notes WHERE tab_id IS NOT DISTINCT FROM ? AND parent_id IS NOT DISTINCT FROM ?
+        SELECT MAX(order_id) FROM notes WHERE tab_id IS NOT DISTINCT FROM ?
         "#,
     )
     .bind(tab_id)
-    .bind(parent_id)
     .fetch_optional(&*pool)
     .await
     .map_err(|e| {
@@ -122,17 +117,15 @@ pub async fn create_note(
 
     let note = query_as::<_, Note>(
         r#"
-        INSERT INTO notes (title, content, tab_id, parent_id, order_id, note_type)
-        VALUES (?, ?, ?, ?, ?, ?)
-        RETURNING id, title, content, tab_id, parent_id, order_id, note_type, created_at, updated_at
+        INSERT INTO notes (title, content, tab_id, order_id)
+        VALUES (?, ?, ?, ?)
+        RETURNING id, title, content, tab_id, order_id, created_at, updated_at
         "#,
     )
     .bind(&title)
     .bind(content)
     .bind(tab_id)
-    .bind(parent_id)
     .bind(new_order)
-    .bind(note_type)
     .fetch_one(&*pool)
     .await
     .map_err(|e| {
@@ -365,7 +358,6 @@ pub async fn reorder_notes(
     pool: State<'_, SqlitePool>,
     tab_id: Option<i64>,
     note_ids: Vec<i64>,
-    parent_id: Option<i64>,
 ) -> Result<(), String> {
     let len = note_ids.len() as i64;
     if len == 0 {
@@ -380,9 +372,8 @@ pub async fn reorder_notes(
     for (index, &id) in note_ids.iter().enumerate() {
         let order_id = (index + 1) as i64;
 
-        sqlx::query("UPDATE notes SET order_id = ?, parent_id = ? WHERE id = ? AND tab_id IS NOT DISTINCT FROM ?")
+        sqlx::query("UPDATE notes SET order_id = ? WHERE id = ? AND tab_id IS NOT DISTINCT FROM ?")
             .bind(order_id)
-            .bind(parent_id)
             .bind(id)
             .bind(tab_id)
             .execute(&mut *transaction)

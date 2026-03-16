@@ -8,7 +8,7 @@
   import { load } from '@tauri-apps/plugin-store';
   import type { Store } from '@tauri-apps/plugin-store';
   import { dndzone, type DndEvent, dragHandleZone } from 'svelte-dnd-action';
-  import { slide, fly } from 'svelte/transition';
+  import { fly } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
 
   import ComponentNote from '../components/componentNote.svelte';
@@ -24,35 +24,33 @@
     setCurrentTabId,
     currentTabName,
     setCurrentTabName,
-    noteOpenStates,
     setStatus,
     setStore,
     store,
     noteHeightMultiplier = $bindable(),
+    noteColumns = $bindable(),
   }: {
     currentTabId: number | null;
     setCurrentTabId: (id: number | null) => void;
     currentTabName: string | null;
     setCurrentTabName: (name: string | null) => void;
-    noteOpenStates: Record<number, boolean>;
     setStatus: (msg: string) => void;
     setStore: (s: Store) => void;
     store: Store | null;
     noteHeightMultiplier: "smaller" | "larger" | null;
+    noteColumns: number | null;
   } = $props();
 
   let notes = $state<Note[]>([]);
   let currentTabNotes = $state<Note[]>([]);
   let tabs = $state<Tab[]>([]);
-  let topLevelNotes = $derived.by(() => { return currentTabNotes.filter(n => n.parent_id === null).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
+  let topLevelNotes = $derived(currentTabNotes);
   let foundNotes = $derived.by(() => { return notes.filter(n => stripHtml(n.title).toLowerCase() === searchable?.trim().toLowerCase()) });
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
   let zoomedNoteId = $state<number | null>(null);
   let deleteNoteId = $derived(deleteNoteContext.getDeleteNoteId());
 
-  let hydrated = $state(false);
-  let noteType = $state('basic');
   let contextMenu = $state<ContextMenu>()!;
 
   let editingTabId = $state<number | null>(null);
@@ -66,6 +64,7 @@
 
   const flipDurationMs = 200;
   let windowHeight = $state<number>(0);
+  let noteRowHeight = $state<number>(0);
 
   onMount(() => {
     void (async () => {
@@ -82,8 +81,8 @@
 
       const savedTabId = await store.get<number>('currentTabId') ?? null;
       const savedTabName = await store.get<string>('currentTabName') ?? null;
-      const savedOpenStates = await store.get<Record<number, boolean>>('noteOpenStates') ?? {};
       const savedNoteHeightMultiplier = await store.get<"smaller" | "larger">('noteHeightMultiplier') ?? "smaller";
+      const savedNoteColumns = await store.get<number | null>('noteColumns') ?? 4;
 
       if (savedTabId !== null && savedTabName !== null && tabs.some(t => t.id === savedTabId && t.name === savedTabName)) {
         try {
@@ -96,22 +95,19 @@
         }
       }
 
-      if (savedOpenStates) {
-        try {
-          Object.assign(noteOpenStates, savedOpenStates);
-
-          hydrated = true;
-        } catch (error) {
-          console.error("Failed to set note states to their previous states:", error);
-          setStatus(`Failed to set notes' states to their previous states: ${error}`);
-        }
-      }
-
       if (savedNoteHeightMultiplier) {
         try {
           noteHeightMultiplier = savedNoteHeightMultiplier;
         } catch (error) {
           console.error("Failed to set note height multiplier:", error);
+        }
+      }
+
+      if (savedNoteColumns) {
+        try {
+          noteColumns = savedNoteColumns;
+        } catch (error) {
+          console.error("Failed to set note columns:", error);
         }
       }
     })();
@@ -132,21 +128,6 @@
   });
 
   $effect(() => {
-    if (!store || !hydrated) return;
-
-    void (async () => {
-      try {
-        await store.set('noteOpenStates', noteOpenStates);
-        await store.save();
-        setStore(store);
-      } catch (error) {
-        console.error("Failed to save note state change:", error);
-        setStatus(`Failed to save note state change: ${error}`);
-      }
-    })();
-  });
-
-  $effect(() => {
     if (currentTabId !== null) {
       loadNotes(currentTabId);
     }
@@ -161,7 +142,20 @@
   });
 
   $effect(() => {
+    if (noteColumns !== null && store) {
+      store.set('noteColumns', noteColumns);
+      store.save;
+      setStore(store);
+    }
+  });
+
+  $effect(() => {
     if (typeof window !== 'undefined') windowHeight = window.innerHeight;
+  });
+
+  $effect(() => {
+    if (noteHeightMultiplier === 'smaller') noteRowHeight = (windowHeight - 150) / 2;
+    else if (noteHeightMultiplier === 'larger') noteRowHeight = windowHeight - 140;
   });
 
   function stripHtml(html: string | undefined): string {
@@ -199,8 +193,7 @@
 
   async function addNote() {
     try {
-      const newNote = await invoke<Note>('create_note', { title: 'Untitled', content: '', tabId: currentTabId, parentId: null, noteType: noteType });
-      noteOpenStates[newNote.id] = true;
+      await invoke<Note>('create_note', { title: 'Untitled', content: '', tabId: currentTabId });
 
       await loadNotes(currentTabId);
 
@@ -458,7 +451,7 @@
         innerNote.style.transition = 'transform 0.2s cubic-bezier(0.645, 0.045, 0.355, 1.000)';
         innerNote.style.transformOrigin = 'top-center';
 
-        const content: HTMLElement | null = innerNote.querySelector('.noteContent, .subNotes');
+        const content: HTMLElement | null = innerNote.querySelector('.noteContent');
         if (content) content.style.display = 'none';
       }
     }
@@ -552,7 +545,7 @@
       <button id="zoomedNoteCloseBtn" class="primary-button" onclick={closeZoom}>Close without saving</button>
       <ComponentNote
         note={currentTabNotes.find(n => n.id === zoomedNoteId)!}
-        {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier} {windowHeight}
+        zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
         reloadNotes={() => loadNotes(currentTabId)}
       ></ComponentNote>
     </div>
@@ -571,10 +564,13 @@
         </select>
       </div>
       <div>
-        <span>Note type</span>
-        <select bind:value={noteType} style="margin-left: 0;">
-          <option value="basic">Basic</option>
-          <option value="categorical">Categorical</option>
+        <span>Note columns</span>
+        <select bind:value={noteColumns} style="margin: 0;">
+          <option value=2>2</option>
+          <option value=3>3</option>
+          <option value=4>4</option>
+          <option value=5>5</option>
+          <option value=6>6</option>
         </select>
       </div>
       <button class="primary-button" onclick={addNote} disabled={!currentTabId}>Add note</button>
@@ -602,9 +598,8 @@
   </div>
 
   <div id="middle">
-    <div id="innerNoteContainer" use:dragHandleZone={{
+    <div id="innerNoteContainer" style="grid-auto-rows: {noteRowHeight}px; grid-template-columns: repeat({noteColumns}, minmax(180px, 1fr));" use:dragHandleZone={{
       items: previewNotes ?? topLevelNotes,
-      type: 'top-level-note',
       flipDurationMs: flipDurationMs,
       dropTargetStyle: {},
       transformDraggedElement: transformElement,
@@ -617,7 +612,7 @@
         {#each foundNotes as note (note.id)}
           <div style="display: flex; flex: 1 1 0;">
             <ComponentNote
-              {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier} {windowHeight}
+              {note} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
               reloadNotes={() => loadNotes(currentTabId)}
             ></ComponentNote>
           </div>
@@ -628,14 +623,14 @@
             {#each (previewNotes ?? topLevelNotes) as note (note.id)}
               <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
                 <ComponentNote
-                  {note} {currentTabNotes} {noteOpenStates} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes} noteHeightMultiplier={noteHeightMultiplier} {windowHeight}
+                  {note} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
                   reloadNotes={() => loadNotes(currentTabId)}
                 ></ComponentNote>
               </div>
             {/each}
           {/key}
         {:else}
-          <div style="display: flex; width: 100%; height: 100%; align-items: center; justify-content: center;">
+          <div style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;">
             <span style="user-select: none; font-size: 24px;">No notes yet.</span>
           </div>
         {/if}
@@ -643,7 +638,7 @@
     </div>
   </div>
 
-  <div id="tabBar" transition:slide={{ delay: 100, duration: 200, easing: cubicInOut }} style="z-index: 1;">
+  <div id="tabBar" style="z-index: 1;">
     <button id="buttonAddTab" class="primary-button" onclick={addTab}>Add Tab</button>
     <div id="tabList" use:dndzone={{
       items: previewTabs ?? tabs,
@@ -717,7 +712,7 @@
 #notesMenuBarControls {
   display: flex;
   flex: 1 1 0;
-  max-width: 450px;
+  max-width: 425px;
   flex-direction: row;
   align-items: center;
   gap: 5px;
@@ -879,8 +874,6 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  transition: bottom 200ms cubic-bezier(0.645, 0.045, 0.355, 1.000);
-  transition-delay: 100ms;
 }
 
 .notificationContainer {
@@ -888,9 +881,7 @@
 }
 
 #innerNoteContainer {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
+  display: grid;
   gap: 10px;
   width: calc(100vw - 85px);
   height: 100vh;

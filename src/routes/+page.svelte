@@ -17,23 +17,57 @@
   setContext('setDeleteEventId', setDeleteEventId);
   setContext('deleteNoteContext', { getDeleteNoteId: () => deleteNoteId, setDeleteNoteId });
 
+  const views = [
+    { name: 'Home', src: 'home.svg' },
+    { name: 'notesView', src: 'note.svg' },
+    { name: 'timerView', src: 'clock.svg' },
+    { name: 'calendarView', src: 'calendar.svg' },
+  ];
+
   let uiVisibility = $state({ runningTimer: true, });
-  let noteOpenStates = $state<Record<number, boolean>>({});
   let currentTabId = $state<number | null>(null);
   let currentTabName = $state<string | null>(null);
 
   let store = $state<Store | null>(null);
-  let currentView = $state<'timerView' | 'calendarView' | 'notesView' | 'Home'>('Home');
+  let currentView = $state<string | 'Home'>('Home');
   let statusBar = $state<HTMLSpanElement>()!;
   let deleteNoteId = $state<number | null>(null);
   let deleteEventId = $state<number | null>(null);
   let timerNotifBottom = $state<number>(25);
   let noteHeightMultiplier = $state<"larger" | "smaller" | null>(null);
+  let noteColumns = $state<number | null>(null);
+  let runningTimerIsOpen = $derived(uiVisibility.runningTimer);
 
   let displayMinutes = $state(0);
   let displaySeconds = $state(0);
   let isRunningTimerFinished = $state(false);
   let setTimerMessage = $state('');
+
+  // Helper/wrapper functions
+
+  function runningTimerToggle() {
+    uiVisibility.runningTimer = !uiVisibility.runningTimer;
+  }
+
+  function setCurrentTabId(id: number | null) {
+    currentTabId = id;
+  }
+
+  function setCurrentTabName(name: string | null) {
+    currentTabName = name;
+  }
+
+  function setDeleteNoteId(id: number | null) {
+    deleteNoteId = id;
+  }
+
+  function setDeleteEventId(id: number | null) {
+    deleteEventId = id;
+  }
+
+  function setStore(s: Store) {
+    store = s;
+  }
 
   onMount(() => {
     void (async () => {
@@ -51,8 +85,8 @@
     if (store) {
       store.set('currentTabId', currentTabId);
       store.set('currentTabName', currentTabName);
-      store.set('noteOpenStates', noteOpenStates);
       store.set('noteHeightMultiplier', noteHeightMultiplier);
+      store.set('noteColumns', noteColumns);
       store.save();
     }
     showOverlay = true;
@@ -92,32 +126,6 @@
     setTimerMessage = setMessage;
   }
 
-  let runningTimerIsOpen = $derived(uiVisibility.runningTimer);
-
-  function runningTimerToggle() {
-    uiVisibility.runningTimer = !uiVisibility.runningTimer;
-  }
-
-  function setCurrentTabId(id: number | null) {
-    currentTabId = id;
-  }
-
-  function setCurrentTabName(name: string | null) {
-    currentTabName = name;
-  }
-
-  function setDeleteNoteId(id: number | null) {
-    deleteNoteId = id;
-  }
-
-  function setDeleteEventId(id: number | null) {
-    deleteEventId = id;
-  }
-
-  function setStore(s: Store) {
-    store = s;
-  }
-
 </script>
 
 {#if showOverlay}
@@ -142,16 +150,11 @@
 
 <div style="position: fixed; inset: 0; overflow: hidden;">
   <div id="navigationBar">
-    <button class="primary-button" class:selected={currentView === 'Home'} onclick={() => { currentView = 'Home'; statusBar.textContent = "Home loaded successfully" }}>Home</button>
-    <button class="primary-button" id="noteViewBtn" class:selected={currentView === 'notesView'} onclick={() => currentView = 'notesView'}>
-      <img id="noteIcon" src="note.svg" alt="noteIcon">
-    </button>
-    <button class="primary-button" id="timerViewBtn" class:selected={currentView === 'timerView'} onclick={() => currentView = 'timerView'}>
-      <img id="clockIcon" src="clock.svg" alt="clockIcon">
-    </button>
-    <button class="primary-button" id="calendarViewBtn" class:selected={currentView === 'calendarView'} onclick={() => currentView = 'calendarView'}>
-      <img id="calendarIcon" src="calendar.svg" alt="calendarIcon">
-    </button>
+    {#each views as view}
+      <button class="primary-button" class:selected={currentView === view.name} onclick={() => currentView = view.name}>
+        <img class="navigationIcons" src={view.src} alt="icon">
+      </button>
+    {/each}
   </div>
 
   <div id="Content">
@@ -160,7 +163,7 @@
     {:else if currentView === 'calendarView'}
       <CalendarView setStatus={(msg) => (statusBar.textContent = msg)} />
     {:else if currentView === 'notesView'}
-      <NotesView setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} {noteOpenStates} setStatus={(msg) => (statusBar.textContent = msg)}  bind:noteHeightMultiplier />
+      <NotesView setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} setStatus={(msg) => (statusBar.textContent = msg)} bind:noteHeightMultiplier bind:noteColumns />
     {:else}
       <div>Home</div>
     {/if}
@@ -172,7 +175,7 @@
 
   <div id="runningTimerContainer">
     <button id="runningTimerToggle" class:closed={!runningTimerIsOpen} onclick={runningTimerToggle}>
-        <img id="runningTimerArrow" class:pointleft={!runningTimerIsOpen} src="down-arrow.svg" alt="runningTimerToggleIcon">
+        <img id="runningTimerArrow" class:pointleft={!runningTimerIsOpen} src="arrow.svg" alt="runningTimerToggleIcon">
     </button>
     {#if runningTimerIsOpen}
       <div id="timesContainer" transition:fly={{ x: 100, duration: 400, easing: cubicInOut }}>
@@ -318,20 +321,12 @@
   font-size: 24px;
 }
 
-#noteIcon, #clockIcon, #calendarIcon {
-  display: flex;
+.navigationIcons {
   justify-self: center;
   max-width: 40px;
   width: 100%;
   max-height: 40px;
   height: 100%;
-}
-
-#noteIcon {
-  filter: saturate(0);
-}
-
-#clockIcon, #calendarIcon {
   filter: brightness(0) invert(0.7);
 }
 

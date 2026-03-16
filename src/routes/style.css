@@ -143,8 +143,7 @@ html, body {
 
 
 .note.editing .tiptap.ProseMirror, .note .tiptap.ProseMirror {
-  max-height: 550px;
-  max-width: calc(100vw - 140px);
+  height: 100%;
   color: #f6f6f6;
   background: transparent;
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
@@ -155,7 +154,7 @@ html, body {
   border-radius: 6px;
   outline: none;
   text-align: left;
-  padding: 5px;
+  padding: 4px 4px 4px 10px;
   white-space: pre-wrap;
   word-break: break-word;
   word-wrap: break-word;
@@ -185,12 +184,6 @@ html, body {
   border-color: #723fffd0;
 }
 
-.note .subNotes .note {
-  height: unset;
-  max-height: 600px;
-  min-width: unset;
-}
-
 .noteContent p {
   margin: 0;
 }
@@ -201,4 +194,5 @@ html, body {
 
 .noteContentEditable {
   margin-top: 10px;
+  height: calc(100% - 86px);
 }

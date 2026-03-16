@@ -1,15 +1,12 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { slide } from 'svelte/transition';
-  import { flip } from 'svelte/animate';
-  import ComponentNote from './componentNote.svelte';
-  import { cubicInOut } from 'svelte/easing';
-  import { type DndEvent, dragHandleZone, dragHandle, SHADOW_ITEM_MARKER_PROPERTY_NAME } from 'svelte-dnd-action';
+  import { dragHandle } from 'svelte-dnd-action';
   import { Editor, EditorContent } from 'svelte-tiptap';
   import StarterKit from '@tiptap/starter-kit';
   import { TextStyle } from '@tiptap/extension-text-style';
   import Color from '@tiptap/extension-color';
   import { Extension } from '@tiptap/core';
+  import HardBreak from '@tiptap/extension-hard-break';
   import { getContext } from 'svelte';
 
   import type { Note } from '../types/types';
@@ -22,30 +19,19 @@
     note,
     reloadNotes,
     setStatus,
-    currentTabNotes,
-    noteOpenStates = $bindable<Record<number, boolean>>(),
     zoomedNote,
     zoomedNoteId = null,
     isSearching = false,
     getAllNotes,
-    noteHeightMultiplier,
-    windowHeight,
   }: {
     note: Note;
     reloadNotes: () => void;
     setStatus: (msg: string) => void;
-    currentTabNotes: Note[];
-    noteOpenStates: Record<number, boolean>;
     zoomedNote: (id: number) => void;
     zoomedNoteId: number | null;
     isSearching: boolean;
     getAllNotes: () => Promise<void>;
-    noteHeightMultiplier: "larger" | "smaller" | null;
-    windowHeight: number;
   } = $props();
-
-  let childNotes = $derived.by(() => { return currentTabNotes.filter(n => n.parent_id === note.id).sort((a, b) => (a.order_id ?? 0) - (b.order_id ?? 0)) });
-  let previewChildNotes = $state<Note[] | null>(null);
 
   let isEditing = $state<boolean>(false);
   let editingTitle = $state('');
@@ -54,18 +40,14 @@
   let titleEditor = $state<Editor | null>(null);
   let SelectedContentType = $state<'noteTitle' | 'noteContent' | null>(null);
 
-  const isCategory = $derived(note.note_type === 'categorical');
-
-  let originalOpenState = false;
-  let hasSavedState = false;
-
   let isZoomed = $derived(zoomedNoteId === note.id);
-  let open = $derived(noteOpenStates[note.id] ?? true);
-  let collapseOpen = $derived(isEditing || open);
   let noteMaxHeight = $state<number>(0);
-  let noteContentHeight = $state<number>(0);
 
-  const flipDurationMs = 200;
+  const editorButtons = [
+    { name: 'underline', img: 'underline.svg' },
+    { name: 'bold', img: 'boldtext.svg' },
+    { name: 'italic', img: 'italic.svg' },
+  ]
 
   $effect(() => {
     if (isEditing) {
@@ -76,6 +58,13 @@
             TextStyle,
             Color,
             FontSize,
+            HardBreak.extend({
+              addKeyboardShortcuts() {
+                return {
+                  Enter: () => this.editor.commands.setHardBreak(),
+                };
+              },
+            }),
           ],
           content: editingContent,
           onUpdate: ({ editor }) => { editingContent = editor.getHTML(); },
@@ -114,33 +103,7 @@
     }
   });
 
-  $effect(() => {
-    if (noteHeightMultiplier == "smaller") noteMaxHeight = (windowHeight - 150) / 2, noteContentHeight = (windowHeight - 444) / 2;
-    else if (noteHeightMultiplier == "larger") noteMaxHeight = (windowHeight - 140), noteContentHeight = windowHeight - 287;
-    if (isZoomed) noteMaxHeight = windowHeight - 140, noteContentHeight = windowHeight - 420;
-  });
-
-  async function addChild() {
-    try {
-      const newNote = await invoke<typeof note>('create_note', { title: 'Untitled', content: '', tabId: note.tab_id, noteType: 'basic', parentId: note.id });
-      noteOpenStates[newNote.id] = true
-
-      if (isSearching) {
-        await getAllNotes();
-      } else {
-        await reloadNotes();
-      }
-
-      setStatus("Added sub-note successfully");
-    } catch (error) {
-      console.error("Failed to add sub-note:", error);
-      setStatus(`Failed to add sub-note: ${error}`);
-    }
-  }
-
   function startEdit() {
-    originalOpenState = open;
-    hasSavedState = true;
     isEditing = true;
     editingTitle = note.title;
     editingContent = note.content;
@@ -169,7 +132,6 @@
       await invoke('update_note', { id: note.id, title: editingTitle, content: editingContent || '' });
 
       isEditing = false;
-      noteOpenStates[note.id] = true;
 
       if (isSearching) {
         await getAllNotes();
@@ -187,18 +149,10 @@
 
   function cancelEdit() {
     isEditing = false;
-
-    if (hasSavedState) {
-      noteOpenStates[note.id] = originalOpenState;
-      hasSavedState = false;
-    }
   }
 
   function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      saveEdit();
-    } else if (e.key === 'Escape') {
+    if (e.key === 'Escape') {
       cancelEdit();
     }
   }
@@ -220,114 +174,6 @@
     };
   }
 
-  function toggle() {
-    const isOpen = !(noteOpenStates[note.id] ?? true);
-    noteOpenStates[note.id] = isOpen;
-  }
-
-  function CloseAllSubnotes() {
-    const selectedNotes = childNotes.filter(n => n.parent_id === note.id);
-
-    for (const selected of selectedNotes) {
-      noteOpenStates[selected.id] = false;
-    }
-  }
-
-  function OpenAllSubnotes() {
-    const selectedNotes = childNotes.filter(n => n.parent_id === note.id);
-
-    for (const selected of selectedNotes) {
-      noteOpenStates[selected.id] = true;
-    }
-  }
-
-  let pendingChildNoteUpdate: { ids: number[]; tabId: number | null; parentId: number } | null = null;
-  let areChildNotesSyncing = false;
-
-  function handleDnd(e: CustomEvent<DndEvent<Note>>) {
-    previewChildNotes = [...e.detail.items] as Note[];
-  }
-
-  function handleDndFinalize(e: CustomEvent<DndEvent<Note>>) {
-    previewChildNotes = null;
-    const newItems = [...e.detail.items];
-
-    newItems.forEach((item, index) => {
-      item.order_id = index + 1;
-    });
-    childNotes = [...newItems];
-
-    const orderedIds = newItems.map(n => n.id);
-
-    pendingChildNoteUpdate = { ids: orderedIds, tabId: note.tab_id, parentId: note.id };
-
-    if (!areChildNotesSyncing) {
-      processPendingChildNoteUpdate();
-    }
-  }
-
-  async function processPendingChildNoteUpdate() {
-    if (!pendingChildNoteUpdate) {
-      areChildNotesSyncing = false;
-      return;
-    }
-
-    areChildNotesSyncing = true;
-
-    const currentBatch = pendingChildNoteUpdate;
-    pendingChildNoteUpdate = null;
-
-    let attempt = 0;
-    const maxRetries = 3;
-
-    while (attempt <= maxRetries) {
-      try {
-        await invoke('reorder_notes', { noteIds: currentBatch.ids, tabId: currentBatch.tabId, parentId: currentBatch.parentId });
-
-        setStatus('Sub-notes reordered successfully');
-        break;
-      } catch (error) {
-        console.error("Failed to reorder sub-notes:", error);
-
-        if (attempt >= maxRetries) {
-          await reloadNotes();
-
-          setStatus(`Failed to reorder sub-notes: ${error}`);
-          break;
-        }
-        await new Promise(r => setTimeout(r, 200 * Math.pow(2, attempt)));
-        attempt++;
-      }
-    }
-
-    areChildNotesSyncing = false;
-    processPendingChildNoteUpdate();
-  }
-
-  function transformElement(element: HTMLElement | undefined) {
-    if (element) {
-      const innerNote: HTMLElement | null = element.querySelector('.note');
-      element.style.outline = 'none';
-      element.style.willChange = 'transform';
-      if (innerNote) {
-        innerNote.style.willChange = 'transform';
-        const currentHeight = element.getBoundingClientRect().height;
-        innerNote.style.outline = '2px solid #723fffd0';
-        innerNote.style.outlineOffset = '-2px';
-        innerNote.style.borderRadius = '8px';
-        innerNote.style.boxShadow = '0 8px 20px rgba(0,0,0,0.4)';
-        innerNote.style.zIndex = '1000';
-        innerNote.style.height = `${currentHeight}px`;
-        innerNote.style.transform = 'scale(0.5)';
-        innerNote.style.transition = 'transform 0.2s cubic-bezier(0.645, 0.045, 0.355, 1.000)';
-        innerNote.style.transformOrigin = 'center';
-
-        const content: HTMLElement | null = innerNote.querySelector('.noteContent');
-        if (content) content.style.display = 'none';
-      }
-    }
-  }
-
   function applyFormat(command: string, value?: string) {
     const targetEditor = getActiveEditor();
     if (!targetEditor) return;
@@ -338,6 +184,9 @@
         break;
       case 'bold':
         targetEditor.chain().focus().toggleBold().run();
+        break;
+      case 'italic':
+        targetEditor.chain().focus().toggleItalic().run();
         break;
       case 'fontSize':
         if (value) {
@@ -392,7 +241,6 @@
 
 <div
   class="note" style="max-height: {noteMaxHeight}px;"
-  class:category={isCategory}
   class:editing={isEditing}
   class:zoomed={isZoomed}
   role="article"
@@ -400,7 +248,7 @@
 >
   <div id="noteTitleBox">
     <div class="noteControls">
-      {#if !isCategory && !isEditing && !isZoomed}
+      {#if !isEditing && !isZoomed}
         <button class="zoomBtn" onclick={() => zoomedNote(note.id)} ondblclick={e => { e.stopPropagation(); }}>
           <img id="zoom-icon" src="zoom.svg" alt="ZoomIcon">
         </button>
@@ -409,34 +257,18 @@
         <button class="primary-button" onclick={saveEdit}><img src="save.svg" alt="Save" style="max-height: 20px; max-width: 20px;"></button>
         <button class="primary-button" onclick={cancelEdit}><img src="cancel.svg" alt="Cancel" style="max-height: 20px; max-width: 20px;"></button>
       {/if}
-      {#if isCategory && !isEditing}
-        <button class="primary-button" onclick={addChild} ondblclick={e => { e.stopPropagation(); }}><img src="close.svg" alt="Add note" style="transform: rotate(45deg); max-height: 16px; max-width: 16px;"></button>
-        <button class="primary-button" onclick={startEdit} ondblclick={e => { e.stopPropagation(); }}><img src="edit-pencil.svg" alt="Edit icon" style="max-height: 22px; max-width: 22px;"></button>
-        <button class="primary-button" onclick={OpenAllSubnotes} ondblclick={e => { e.stopPropagation(); }}><img src="show-eye.svg" alt="Show notes" style="max-height: 24px; max-width: 24px;"></button>
-        <button class="primary-button" onclick={CloseAllSubnotes} ondblclick={e => { e.stopPropagation(); }}><img src="hide-eye.svg" alt="Hide notes" style="max-height: 24px; max-width: 24px;"></button>
-        <button class="primary-button" onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }}><img src="trash-can.svg" alt="Trash can" style="max-height: 20px; max-width: 20px;"></button>
-      {:else if !isCategory && !isEditing}
-        {#if note.parent_id !== null}
-          <button class="primary-button" onclick={toggle} ondblclick={e => { e.stopPropagation(); }}>
-            {#if open}
-              <img src="hide-eye.svg" alt="Eye icon" style="max-height: 24px; max-width: 24px;">
-            {:else}
-              <img src="show-eye.svg" alt="Eye icon" style="max-height: 24px; max-width: 24px;">
-            {/if}
-          </button>
-        {/if}
+      {#if !isEditing}
         <button class="primary-button" onclick={startEdit} ondblclick={e => { e.stopPropagation(); }}><img src="edit-pencil.svg" alt="Edit icon" style="max-height: 22px; max-width: 22px;"></button>
         <button class="primary-button" onclick={() => setDeleteNoteId(note.id)} ondblclick={e => { e.stopPropagation(); }}><img src="trash-can.svg" alt="Trash can" style="max-height: 20px; max-width: 20px;"></button>
       {/if}
       <div class="spacer"></div>
       {#if isEditing}
         <div class="editorToolbar">
-          <button class="primary-button" onclick={() => applyFormat('underline')}>
-            <img id="textUnderline-icon" src="underline.svg" alt="textUnderline">
-          </button>
-          <button class="primary-button" onclick={() => applyFormat('bold')}>
-            <img id="textBold-icon" src="boldtext.svg" alt="textBold">
-          </button>
+          {#each editorButtons as button}
+            <button class="primary-button" onclick={() => applyFormat(button.name)}>
+              <img class="editorIcons" src={button.img} alt="symbol">
+            </button>
+          {/each}
           <select
             onchange={(e) => {
               const target = e.target as HTMLSelectElement | null;
@@ -485,50 +317,22 @@
   </div>
 
   <div id="noteContentOuter">
-    {#if collapseOpen}
-      <div style="overflow: hidden;" transition:slide={{ delay: 100, duration: 400, easing: cubicInOut }}>
-        {#if isEditing}
-          {#if !isCategory}
-            {#if editor}
-              <EditorContent
-                editor={editor}
-                class="noteContentEditable"
-              />
-            {/if}
-            <div class="noteControls" style="margin-top: 10px;">
-              <button class="primary-button" onclick={saveEdit}><img src="save.svg" alt="Save" style="max-height: 20px; max-width: 20px;"></button>
-              <button class="primary-button" onclick={cancelEdit}><img src="cancel.svg" alt="Cancel" style="max-height: 20px; max-width: 20px;"></button>
-            </div>
-            <div class="infoText">
-              <small>Press Esc to cancel | Press Enter or click outside to save</small>
-            </div>
-          {/if}
-        {:else}
-          {#if !isCategory}
-            <p class="noteContent" style="min-height: {noteContentHeight}px" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{@html note.content || 'No content'}</p>
-          {:else if isCategory}
-            <div class="subNotes" use:dragHandleZone={{
-              items: previewChildNotes ?? childNotes,
-              type: `child-note`,
-              flipDurationMs: flipDurationMs,
-              dropTargetStyle: {border: '1px solid #ccc'},
-              transformDraggedElement: transformElement,
-              morphDisabled: true,
-              centreDraggedOnCursor: true }}
-              onconsider={handleDnd}
-              onfinalize={handleDndFinalize}
-            >
-              {#key childNotes.map(n => n.id).join('-')}
-                {#each (previewChildNotes ?? childNotes) as child (child.id)}
-                  <div animate:flip={{ duration: flipDurationMs }} data-is-dnd-shadow-item-hint={(child as any)[SHADOW_ITEM_MARKER_PROPERTY_NAME] ?? false}>
-                    <ComponentNote note={child} {reloadNotes} {setStatus} {currentTabNotes} {noteOpenStates} {zoomedNote} zoomedNoteId={zoomedNoteId} {isSearching} {getAllNotes} {noteHeightMultiplier} {windowHeight} />
-                  </div>
-                {/each}
-              {/key}
-            </div>
-          {/if}
-        {/if}
+    {#if isEditing}
+      {#if editor}
+        <EditorContent
+          editor={editor}
+          class="noteContentEditable"
+        />
+      {/if}
+      <div class="noteControls" style="margin-top: 10px;">
+        <button class="primary-button" onclick={saveEdit}><img src="save.svg" alt="Save" style="max-height: 20px; max-width: 20px;"></button>
+        <button class="primary-button" onclick={cancelEdit}><img src="cancel.svg" alt="Cancel" style="max-height: 20px; max-width: 20px;"></button>
       </div>
+      <div class="infoText">
+        <small>Press Esc to cancel</small>
+      </div>
+    {:else}
+      <p class="noteContent" ondblclick={(e) => { if (isEditing) return; e.stopPropagation(); startEdit(); }}>{@html note.content || 'No content'}</p>
     {/if}
   </div>
 </div>
@@ -537,23 +341,16 @@
 
 .note {
   display: flex;
-  flex: 1 1 0;
   flex-direction: column;
   background-color: #222;
   border-radius: 8px;
   padding: 18px 4px;
+  min-height: 100%;
   height: 100%;
-  min-width: calc((100vw - 155px) / 4);
+  min-width: 180px;
+  width: 100%;
   box-shadow: 0 4px 12px rgba(0,0,0,0.8);
   transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.note.category {
-  align-items: center;
-  max-height: calc((100vh - 151px) / 2);
-  height: 100%;
-  min-width: calc((100vw - 125px) / 4);
-  width: 100%;
 }
 
 .noteTitle {
@@ -569,7 +366,7 @@
 }
 
 .noteContent {
-  flex: 1 1 auto;
+  height: calc(100% - 24px);
   overflow-y: auto;
   margin: 12px 0;
   text-align: left;
@@ -643,17 +440,6 @@
   background-color: #444;
 }
 
-.subNotes {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(381px, 100vw));
-  min-height: 50px;
-  gap: 16px;
-  margin-top: 16px;
-  padding: 12px;
-  background-color: #151515;
-  border-radius: 8px;
-}
-
 .dragHandle {
   display: flex;
   align-self: flex-end;
@@ -702,7 +488,7 @@
 .editorToolbar {
   display: flex;
   flex-direction: row;
-  width: 100%;
+  flex: 1 1 0;
   align-items: center;
   justify-content: flex-end;
   gap: 5px;
@@ -711,12 +497,13 @@
 .editorToolbar button {
   height: 30px;
   width: 30px;
+  padding: 6px;
   background-color: #333;
 }
 
-.editorToolbar #textUnderline-icon, .editorToolbar #textBold-icon {
-  width: 22px;
-  height: 22px;
+.editorIcons {
+  width: 18px;
+  height: 18px;
   filter: brightness(1) invert(0.7);
 }
 
@@ -747,7 +534,7 @@
 }
 
 .editorToolbar #colorSelectBar {
-  min-width: 20px;
+  min-width: 40px;
   max-width: 100px;
   width: 100%;
   margin: 0;
