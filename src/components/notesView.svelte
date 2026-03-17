@@ -44,10 +44,9 @@
   } = $props();
 
   let notes = $state<Note[]>([]);
-  let currentTabNotes = $state<Note[]>([]);
+  let currentTabNotes = $derived.by(() => { return notes.filter(n => n.tab_id === currentTabId); });
   let tabs = $state<Tab[]>([]);
-  let topLevelNotes = $derived(currentTabNotes);
-  let foundNotes = $derived.by(() => { return notes.filter(n => stripHtml(n.title).toLowerCase() === searchable?.trim().toLowerCase()) });
+  let foundNotes = $derived.by(() => { if (!searchable || !isSearching) return []; return notes.filter(n => (stripHtml(n.title).match(searchable)) || (stripHtml(n.content).match(searchable))); });
   let previewNotes = $state<Note[] | null>(null);
   let previewTabs = $state<Tab[] | null>(null);
   let zoomedNoteId = $state<number | null>(null);
@@ -61,7 +60,7 @@
   let editingTabName = $state('');
 
   let searchInput = $state<HTMLInputElement>();
-  let searchable = $state<string | null>(null);
+  let searchable = $state<RegExp | string>('');
   let isSearching = $state<boolean>(false);
 
   const flipDurationMs = 200;
@@ -140,7 +139,7 @@
 
   $effect(() => {
     if (currentTabId !== null) {
-      loadNotes(currentTabId);
+      loadNotes();
     }
   });
 
@@ -155,7 +154,7 @@
   $effect(() => {
     if (noteColumns !== null && store) {
       store.set('noteColumns', noteColumns);
-      store.save;
+      store.save();
       setStore(store);
     }
   });
@@ -163,7 +162,7 @@
   $effect(() => {
     if (noteGap !== null && store) {
       store.set('noteGap', noteGap);
-      store.save;
+      store.save();
       setStore(store);
     }
   });
@@ -173,7 +172,6 @@
   });
 
   $effect(() => {
-    
     if (noteHeightMultiplier === 'smaller' && noteGap) noteRowHeight = (windowHeight - (140 + (10 * noteGap))) / 2;
     else if (noteHeightMultiplier === 'larger') noteRowHeight = windowHeight - 140;
   });
@@ -199,10 +197,10 @@
     }
   }
 
-  async function loadNotes(tabId: number | null) {
+  async function loadNotes() {
     try {
-      const data = await invoke<Note[]>('get_notes', { tabId: tabId });
-      currentTabNotes = data;
+      const data = await invoke<Note[]>('get_notes');
+      notes = data;
 
       setStatus(`Notes loaded on tab ${currentTabName} successfully`);
     } catch (error) {
@@ -212,10 +210,12 @@
   }
 
   async function addNote() {
+    if (tabs.length <= 0) { setStatus("Create a tab before adding notes"); return; }
+
     try {
       await invoke<Note>('create_note', { title: 'Untitled', content: '', tabId: currentTabId });
 
-      await loadNotes(currentTabId);
+      await loadNotes();
 
       setStatus("Created note successfully");
     } catch (error) {
@@ -263,7 +263,7 @@
           setCurrentTabId(null);
           setCurrentTabName(null);
         }
-        await loadNotes(currentTabId);
+        await loadNotes();
         contextTabId = null;
 
         setStatus(`Deleted tab ${contextTabName} successfully`);
@@ -319,7 +319,7 @@
     contextMenu.show(event);
   }
 
-  let pendingNoteUpdate: { ids: number[]; tabId: number | null; parentId: null } | null = null;
+  let pendingNoteUpdate: { ids: number[]; tabId: number | null; } | null = null;
   let areNoteSyncing = false;
 
   function handleDndNote(e: CustomEvent<DndEvent<Note>>) {
@@ -333,11 +333,11 @@
     newItems.forEach((item, index) => {
       item.order_id = index + 1;
     });
-    topLevelNotes = [...newItems];
+    notes = [...newItems];
 
     const orderedIds = newItems.map(n => n.id);
 
-    pendingNoteUpdate = { ids: orderedIds, tabId: currentTabId, parentId: null };
+    pendingNoteUpdate = { ids: orderedIds, tabId: currentTabId };
 
     if (!areNoteSyncing) {
       processPendingNoteUpdate();
@@ -360,7 +360,7 @@
 
     while (attempt <= maxRetries) {
       try {
-        await invoke('reorder_notes', { tabId: currentBatch.tabId, noteIds: currentBatch.ids, parentId: currentBatch.parentId });
+        await invoke('reorder_notes', { tabId: currentBatch.tabId, noteIds: currentBatch.ids });
 
         setStatus("Notes reordered successfully");
         break;
@@ -368,7 +368,7 @@
         console.error("Failed to reorder notes:", error);
 
         if (attempt >= maxRetries) {
-          await loadNotes(currentTabId);
+          await loadNotes();
 
           setStatus(`Failed to reorder notes! Retrying. Error: ${error}`);
           break;
@@ -477,35 +477,25 @@
     }
   }
 
-  async function getAllNotes() {
-    try {
-      const data = await invoke<Note[]>('get_all_notes');
-      notes = data;
-    } catch (error) {
-      console.error("Failed to fetch all notes:", error);
-      setStatus(`Failed to fetch all notes: ${error}`);
-    }
-  }
-
   async function searchNotes() {
-    await getAllNotes();
+    if (searchInput?.value.trim() === '' || !searchInput) return;
+
     isSearching = true;
-    searchable = searchInput!.value;
+    searchable = new RegExp((searchInput.value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
 
     if (foundNotes.length <= 0) {
       setStatus("No matches found on search");
-      isSearching = false;
     } else if (foundNotes.length > 0) {
       setStatus("Search completed");
     }
   }
 
   async function closeNotesSearch() {
-    isSearching = false;
-    searchable = null;
-    foundNotes = [];
+    if (!searchInput) return;
 
-    await loadNotes(currentTabId);
+    isSearching = false;
+    searchable = '';
+    searchInput.value = '';
 
     setStatus("Search closed");
   }
@@ -525,11 +515,7 @@
       await invoke('delete_note', { id: deleteNoteId });
       deleteNoteContext.setDeleteNoteId(null);
 
-      if (isSearching) {
-        await getAllNotes();
-      } else {
-        await loadNotes(currentTabId);
-      }
+      await loadNotes();
 
       setStatus(`Deleted note ${plainTitle} successfully`);
     } catch (error) {
@@ -565,8 +551,8 @@
       <button id="zoomedNoteCloseBtn" class="primary-button" onclick={closeZoom}>Close without saving</button>
       <ComponentNote
         note={currentTabNotes.find(n => n.id === zoomedNoteId)!}
-        zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
-        reloadNotes={() => loadNotes(currentTabId)}
+        zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching}
+        reloadNotes={() => loadNotes()}
       ></ComponentNote>
     </div>
   </div>
@@ -599,7 +585,7 @@
           {/each}
         </select>
       </div>
-      <button class="primary-button" onclick={addNote} disabled={!currentTabId}>Add note</button>
+      <button class="primary-button" onclick={addNote} disabled={isSearching}>Add note</button>
       <button class="primary-button" onclick={openLogs}>Logs</button>
       <button class="primary-button" onclick={backupDatabase}>Backup database</button>
     </div>
@@ -607,23 +593,18 @@
       <button id="searchBarBtn" class="primary-button" onclick={searchNotes}>
         <img id="searchIcon" src="search.svg" alt="searchIcon">
       </button>
-      <input id="searchBarInput" bind:this={searchInput} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchNotes(); } if (e.key === 'Escape') { e.preventDefault(); closeNotesSearch(); }}}>
-      {#if !isSearching}
-        <button id="clearSearchBtn" class="primary-button" onclick={() => {searchInput!.value = ''; searchable = null; setStatus("Search cleared") }}>
+      <div id="searchBarInputContainer">
+        <button id="clearSearchBtn" class="primary-button" onclick={() => closeNotesSearch()}>
           <img id="clearSearchIcon" src="close.svg" alt="clearSearchIcon">
         </button>
-      {/if}
-      {#if foundNotes!.length > 0}
-        <button id="searchBarCloseBtn" class="primary-button" transition:fly={{ y: -100, duration: 200, easing: cubicInOut }} onclick={closeNotesSearch}>
-          <img id="closeIcon" src="close.svg" alt="CloseIcon">
-        </button>
-      {/if}
+        <input id="searchBarInput" bind:this={searchInput} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchNotes(); } if (e.key === 'Escape') { e.preventDefault(); closeNotesSearch(); }}}>
+      </div>
     </div>
   </div>
 
   <div id="middle">
     <div id="innerNoteContainer" style="grid-auto-rows: {noteRowHeight}px; grid-template-columns: repeat({noteColumns}, minmax(312px, 1fr)); gap: {10 * noteGap!}px;" use:dragHandleZone={{
-      items: previewNotes ?? topLevelNotes,
+      items: previewNotes ?? currentTabNotes,
       flipDurationMs: flipDurationMs,
       dropTargetStyle: {},
       transformDraggedElement: transformElement,
@@ -632,23 +613,29 @@
       onconsider={handleDndNote}
       onfinalize={handleDndFinalizeNote}
     >
-      {#if foundNotes!.length > 0}
-        {#each foundNotes as note (note.id)}
-          <div style="display: flex; flex: 1 1 0;">
-            <ComponentNote
-              {note} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
-              reloadNotes={() => loadNotes(currentTabId)}
-            ></ComponentNote>
+      {#if isSearching}
+        {#if foundNotes.length > 0}
+          {#each foundNotes as note (note.id)}
+            <div style="display: flex; flex: 1 1 0;">
+              <ComponentNote
+                {note} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching}
+                reloadNotes={() => loadNotes()}
+              ></ComponentNote>
           </div>
-        {/each}
+          {/each}
+        {:else}
+          <div style="position: fixed; inset: 70px 0 50px 85px; display: flex; align-items: center; justify-content: center;">
+            <span style="user-select: none; font-size: 24px;">No matches found on search</span>
+          </div>
+        {/if}
       {:else}
         {#if currentTabNotes.length > 0}
-          {#key topLevelNotes.map(n => n.id).join('-')}
-            {#each (previewNotes ?? topLevelNotes) as note (note.id)}
+          {#key currentTabNotes.map(n => n.id).join('-')}
+            {#each (previewNotes ?? currentTabNotes) as note (note.id)}
               <div style="display: flex; flex: 1 1 0;" animate:flip={{ duration: flipDurationMs }}>
                 <ComponentNote
-                  {note} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching} getAllNotes={getAllNotes}
-                  reloadNotes={() => loadNotes(currentTabId)}
+                  {note} zoomedNote={zoomNote} zoomedNoteId={zoomedNoteId} setStatus={setStatus} isSearching={isSearching}
+                  reloadNotes={() => loadNotes()}
                 ></ComponentNote>
               </div>
             {/each}
@@ -763,6 +750,11 @@
   min-width: 73px;
 }
 
+#notesMenuBarControls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 #notesMenuBarControls select {
   background-color: #222;
   color: #f6f6f6;
@@ -788,7 +780,6 @@
 }
 
 #searchBarContainer {
-  position: relative;
   display: flex;
   flex-direction: row;
   align-self: center;
@@ -802,6 +793,7 @@
 }
 
 #searchBarBtn {
+  min-width: 60px;
   width: 60px;
   height: 40px;
   background-color: #222;
@@ -817,19 +809,17 @@
   user-select: none;
 }
 
-#searchBarCloseBtn {
-  width: 40px;
+#searchBarInputContainer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
   height: 40px;
-  border-radius: 50%;
-  margin-left: 10px;
+  width: 100%;
+  background-color: #222;
   border: 1px solid #444;
-}
-
-#closeIcon {
-  height: 18px;
-  width: 18px;
-  filter: brightness(0) invert(0.7);
-  user-select: none;
+  border-radius: 0 20px 20px 0;
+  padding-right: 20px;
 }
 
 #clearSearchBtn, #searchBarInput {
@@ -838,54 +828,46 @@
 }
 
 #clearSearchBtn {
-  position: absolute;
-  top: 50%;
-  right: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 10px;
-  width: 10px;
+  height: 25px;
+  width: 25px;
+  margin-left: 5px;
   background-color: transparent;
   box-shadow: none;
-  transform: translateY(-50%);
+  transform: none;
+}
+
+#clearSearchBtn:hover {
+  filter: brightness(0) invert(0.9);
 }
 
 #clearSearchIcon {
-  position: relative;
-  height: 10px;
-  width: 10px;
+  object-fit: contain;
+  height: 100%;
+  width: 100%;
   filter: brightness(0) invert(0.7);
   user-select: none;
-}
-
-#clearSearchIcon:hover {
-  filter: brightness(0) invert(0.9);
 }
 
 #searchBarInput {
   width: 100%;
   height: 100%;
   padding-left: 10px;
-  background: #222;
-  border: 1px solid #444;
+  background-color: #222;
   color: #f6f6f6;
   font-size: 16px;
-  border-radius: 0 20px 20px 0;
 }
 
 #searchBarInput:focus {
   border-color: #723fffd0;
 }
 
-#searchBarBtn:hover, #searchBarCloseBtn:hover {
+#searchBarBtn:hover {
   cursor: pointer;
   background-color: #333;
   transform: unset;
-}
-
-#searchBarCloseBtn:hover {
-  transform: translateY(-4px);
 }
 
 #middle {

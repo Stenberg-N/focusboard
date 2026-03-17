@@ -22,7 +22,6 @@
     zoomedNote,
     zoomedNoteId = null,
     isSearching = false,
-    getAllNotes,
   }: {
     note: Note;
     reloadNotes: () => void;
@@ -30,7 +29,6 @@
     zoomedNote: (id: number) => void;
     zoomedNoteId: number | null;
     isSearching: boolean;
-    getAllNotes: () => Promise<void>;
   } = $props();
 
   let isEditing = $state<boolean>(false);
@@ -133,11 +131,7 @@
 
       isEditing = false;
 
-      if (isSearching) {
-        await getAllNotes();
-      } else {
-        await reloadNotes();
-      }
+      await reloadNotes();
 
       const plainTitle = stripHtml(editingTitle) || 'Untitled';
       setStatus(`Updated note ${plainTitle} successfully`);

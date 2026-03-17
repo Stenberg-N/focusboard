@@ -160,7 +160,6 @@ async fn main() {
             commands::reorder_tabs,
             commands::create_timer,
             commands::get_timer,
-            commands::get_all_notes,
             commands::insert_event,
             commands::get_events,
             commands::update_event,

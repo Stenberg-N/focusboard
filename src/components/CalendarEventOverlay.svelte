@@ -66,11 +66,23 @@
 
     return lanes.flatMap((lane, index) => lane.map((event) => ({ ...event, lane: index })));
   }
+
+  const scrollHorizontally = (node: HTMLElement) => {
+    const handleScroll = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      node.scrollLeft += e.deltaY;
+    };
+
+    node.addEventListener('wheel', handleScroll, { passive: false });
+
+    return { destroy: () => node.removeEventListener('wheel', handleScroll) };
+  };
 </script>
 
 <div id="addEventOverlay">
   <div id="mainContent">
-    <div id="timeline">
+    <div id="timeline" use:scrollHorizontally style="scroll-behavior: auto;">
       <div id="timelineOverflow" style="width: 400%;">
         <div id="timeAxisBackground"></div>
         <div id="timeAxis">

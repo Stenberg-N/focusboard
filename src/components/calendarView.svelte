@@ -67,9 +67,9 @@
   let eventEndMinutesInput = $state<HTMLInputElement | null>(null);
 
   let eventSearchInput = $state<HTMLInputElement | null>(null);
-  let searchable = $state<string | null>(null);
+  let searchable = $state<RegExp | string>('');
   let isSearching = $state<boolean>(false);
-  let foundEvents = $derived.by(() => { return events.filter(e => e.event_name.toLowerCase() === searchable?.trim().toLowerCase()) });
+  let foundEvents = $derived.by(() => { if (!searchable || !isSearching) return []; return events.filter(e => e.event_name.toLowerCase().match(searchable)) });
 
   let {
     setStatus,
@@ -355,21 +355,20 @@
   }
 
   function searchEvents() {
-    if (!eventSearchInput) return;
+    if (eventSearchInput?.value.trim() === '' || !eventSearchInput) return;
     isSearching = true;
-    searchable = eventSearchInput.value;
+    searchable = new RegExp((eventSearchInput.value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
 
     if (foundEvents.length <= 0) { setStatus('No matches found'); isSearching = false; }
     else if (foundEvents.length > 0) setStatus('Search completed');
   }
 
   function closeEventSearch() {
-    if (!eventSearchInput) return;
+    if (eventSearchInput?.value.trim() === '' || !eventSearchInput) return;
 
     isSearching = false;
-    searchable = null;
+    searchable = '';
     eventSearchInput.value = '';
-    foundEvents = [];
 
     setStatus("Search closed");
   }
@@ -483,10 +482,12 @@
 {/if}
 
 <div id="eventList">
-  <div id="eventSearchBar" style="position: relative; display: flex; flex-direction: row; height: 40px; width: 100%;">
-    <button id="searchBarBtn" class="primary-button" onclick={() => searchEvents()}><img src="search.svg" alt="icon"></button>
-      <input id="searchBar" bind:this={eventSearchInput} onkeydown={(e) => { if (e.key === 'Enter') { searchEvents(); } if (e.key === 'Escape') { closeEventSearch(); }}} />
-      <button id="stopSearchBtn" class="primary-button" onclick={() => closeEventSearch()}><img src="close.svg" alt="icon"></button>
+  <div id="eventSearchBar">
+    <button id="eventSearchBarBtn" class="primary-button" onclick={() => searchEvents()}><img src="search.svg" alt="icon"></button>
+    <div id="eventSearchBarContentArea">
+      <button id="eventStopSearchBtn" class="primary-button" onclick={() => closeEventSearch()}><img src="close.svg" alt="icon"></button>
+      <input id="eventSearchBarInput" bind:this={eventSearchInput} onkeydown={(e) => { if (e.key === 'Enter') { searchEvents(); } if (e.key === 'Escape') { closeEventSearch(); }}} />
+    </div>
   </div>
   {#if eventsMap.size <= 0}
     <span style="font-size: 18px; font-weight: bold; user-select: none;">No events yet</span>
@@ -1055,63 +1056,74 @@
     transform: translateY(-2px);
   }
 
-  #searchBar {
+  #eventSearchBar {
+    display: flex;
+    flex-direction: row;
+    height: 40px;
+    width: 100%;
+  }
+
+  #eventSearchBarContentArea {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 100%;
     width: 100%;
     margin-right: 11px;
+    border: 1px solid #444;
+    border-radius: 0 20px 20px 0;
+    background-color: #222;
+    padding-right: 20px;
+  }
+
+  #eventSearchBarInput {
+    width: 100%;
+    height: 100%;
     outline: none;
     border: none;
-    background-color: #222;
-    border-radius: 0 20px 20px 0;
-    border: 1px solid #444;
+    background-color: transparent;
     color: #f6f6f6;
     font-size: 16px;
     padding-left: 5px;
   }
 
-  #searchBar:focus {
-    border-color: #723fffd0;
-  }
-
-  #searchBarBtn {
+  #eventSearchBarBtn {
     max-width: 40px;
     border-radius: 20px 0 0 20px;
     border: 1px solid #444;
     border-right: none;
   }
 
-  #searchBarBtn img {
+  #eventSearchBarBtn img {
     width: 20px;
     height: 20px;
     filter: brightness(0) invert(0.7);
   }
 
-  #searchBarBtn:hover {
+  #eventSearchBarBtn:hover {
     transform: unset;
   }
 
-  #stopSearchBtn {
-    position: absolute;
-    top: 50%;
-    right: 25px;
+  #eventStopSearchBtn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 10px;
-    height: 10px;
+    width: 25px;
+    height: 25px;
     background-color: transparent;
     box-shadow: none;
-    transform: translateY(-50%); 
+    transform: none;
   }
 
-  #stopSearchBtn img {
-    position: relative;
-    width: 10px;
-    height: 10px;
-    filter: brightness(0) invert(0.7);
-  }
-
-  #stopSearchBtn img:hover {
+  #eventStopSearchBtn:hover {
     filter: brightness(0) invert(0.9);
+  }
+
+  #eventStopSearchBtn img {
+    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    filter: brightness(0) invert(0.7);
   }
 
   @keyframes openList {

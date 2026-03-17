@@ -52,29 +52,6 @@ pub struct CalendarEvent {
 #[tauri::command]
 pub async fn get_notes(
     pool: State<'_, SqlitePool>,
-    tab_id: Option<i64>,
-) -> Result<Vec<Note>, String> {
-    let notes = query_as::<_, Note>(
-        r#"
-        SELECT * FROM notes
-        WHERE tab_id IS NOT DISTINCT FROM ?
-        ORDER BY order_id ASC
-        "#,
-    )
-    .bind(tab_id)
-    .fetch_all(&*pool)
-    .await
-    .map_err(|e| {
-        error!("Failed to fetch notes (tab_id = {:?}): {:#}", tab_id, e);
-        "Failed to load notes. Please try again.".to_string()
-    })?;
-
-    Ok(notes)
-}
-
-#[tauri::command]
-pub async fn get_all_notes(
-    pool: State<'_, SqlitePool>,
 ) -> Result<Vec<Note>, String> {
     let notes = query_as::<_, Note>(
         r#"
