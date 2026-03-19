@@ -117,7 +117,6 @@
     left: 300px;
     bottom: 0;
     width: calc(100% - 300px);
-    height: 100vh - 20px;
     background-color: #0f0f0f;
   }
 

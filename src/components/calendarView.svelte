@@ -9,6 +9,7 @@
   import { cubicInOut } from 'svelte/easing';
 
   import CalendarEventOverlay from "./CalendarEventOverlay.svelte";
+  import CalendarWeeklyOverlay from "./CalendarWeeklyOverlay.svelte";
 
   import type { CalendarDay, CalendarEvent } from "../types/types";
   import 'overlayscrollbars/overlayscrollbars.css';
@@ -23,9 +24,11 @@
   let year = $state<number>(now.getFullYear());
   let month = $state<number>(now.getMonth());
   let currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let weekIso = $state<string>('');
 
   let selectedDate = $state<string | null>(null);
   let selectedDateClean = $state<string | null>(null);
+  let monthYearDate = $derived(`${monthNames[month]} ${year}`);
   let yearMonth = $derived.by(() => `${String(year)}-${String(Number(month+1))}`);
 
   let events = $state<CalendarEvent[]>([]);
@@ -71,6 +74,14 @@
   let isSearching = $state<boolean>(false);
   let foundEvents = $derived.by(() => { if (!searchable || !isSearching) return []; return events.filter(e => e.event_name.toLowerCase().match(searchable)) });
 
+  let isWeeklyView = $state<boolean>(false);
+  let weekDays = $derived.by(() => {
+    let index = days.findIndex(d => d.isodate === weekIso);
+    if (index < 0) index = 0;
+    const weekStartIndex = Math.floor(index / 7) * 7;
+    return days.slice(weekStartIndex, weekStartIndex + 7);
+  })
+
   let {
     setStatus,
   }: {
@@ -87,8 +98,8 @@
 
   $effect(() => {
     if (selectedDate) {
-      let day = new Date(selectedDate)
-      selectedDateClean = `${monthNames[day.getMonth()].slice(0, 3)} ${day.getDate()}, ${day.getFullYear()}`
+      let day = new Date(selectedDate);
+      selectedDateClean = `${monthNames[day.getMonth()].slice(0, 3)} ${day.getDate()}, ${day.getFullYear()}`;
     }
   });
 
@@ -106,6 +117,11 @@
     if (eventInEdit !== null) {
       displayEventName = eventInEdit.event_name;
     }
+  });
+
+  $effect(() => {
+    if (days.some(day => +day.date === +currentDate)) weekIso = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+    else weekIso = `${year}-${String(month + 1).padStart(2, '0')}-01`;
   });
 
   const getEvents = debounce(async () =>{
@@ -132,8 +148,9 @@
 
     for (let i = daysInLastMonth - offset; i < daysInLastMonth; i++) {
       let day = new Date(previousMonth == 11 ? year - 1 : year, previousMonth, i+1);
+      let isoDate = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
 
-      days.push({ monthabbrev:'', name:'' + (i+1), enabled:false, date:day, isodate:'' });
+      days.push({ monthabbrev:'', name:'' + (i+1), enabled:false, date:day, isodate:isoDate });
     }
 
     for (let i = 0; i < daysInCurrentMonth; i++) {
@@ -146,9 +163,10 @@
 
     for (let i = 0; days.length%7; i++) {
       let day = new Date((month == 11 ? year + 1 : year), (month + 1)%12, i+1);
+      let isoDate = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
 
-      if (i==0) days.push({ monthabbrev:nextMonthAbbreviation, name:'' + (i+1), enabled:false, date:day, isodate:'' });
-      else days.push({ monthabbrev:'', name:'' + (i+1), enabled:false, date:day, isodate:'' });
+      if (i==0) days.push({ monthabbrev:nextMonthAbbreviation, name:'' + (i+1), enabled:false, date:day, isodate:isoDate });
+      else days.push({ monthabbrev:'', name:'' + (i+1), enabled:false, date:day, isodate:isoDate });
     }
   }
 
@@ -281,32 +299,56 @@
     initMonth();
   }
 
-  function nextDay() {
+  async function nextDay() {
     if (!selectedDate) return;
 
-    const day = new Date(selectedDate);
-    const lastDay = new Date(day.getFullYear(), day.getMonth() + 1, 0).getDate();
+    const current = new Date(selectedDate);
+    const next = new Date(current.getFullYear(), current.getMonth(), current.getDate() + 1);
 
-    if ((day.getDate() + 1) > lastDay) {
-      nextMonth();
-      selectedDate = `${day.getFullYear()}-${String(day.getMonth() + 2).padStart(2, '0')}-01`;
-    } else {
-      selectedDate = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate() + 1).padStart(2, '0')}`;
+    if (next.getMonth() !== current.getMonth() || next.getFullYear() !== current.getFullYear()) {
+      await nextMonth();
     }
+    
+    selectedDate = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
   }
 
-  function prevDay() {
+  async function prevDay() {
     if (!selectedDate) return;
 
-    const day = new Date(selectedDate);
-    const lastDayLastMonth = new Date(day.getFullYear(), day.getMonth(), 0).getDate();
+    const current = new Date(selectedDate);
+    const prev = new Date(current.getFullYear(), current.getMonth(), current.getDate() - 1);
 
-    if ((day.getDate()) === 1) {
-      prevMonth();
-      selectedDate = `${day.getFullYear()}-${String(day.getMonth()).padStart(2, '0')}-${lastDayLastMonth}`
-    } else {
-      selectedDate = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate() - 1).padStart(2, '0')}`;
+    if (prev.getMonth() !== current.getMonth() || prev.getFullYear() !== current.getFullYear()) {
+      await prevMonth();
     }
+
+    selectedDate = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}-${String(prev.getDate()).padStart(2, '0')}`;
+  }
+
+  async function nextWeek() {
+    if (!isWeeklyView) return;
+
+    const current = new Date(weekIso);
+    const next = new Date(current.getFullYear(), current.getMonth(), current.getDate() + 7);
+
+    if (next.getMonth() !== current.getMonth() || next.getFullYear() !== current.getFullYear()) {
+      await nextMonth();
+    }
+
+    weekIso = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+  }
+
+  async function prevWeek() {
+    if (!isWeeklyView) return;
+
+    const current = new Date(weekIso);
+    const prev = new Date(current.getFullYear(), current.getMonth(), current.getDate() - 7);
+
+    if (prev.getMonth() !== current.getMonth() || prev.getFullYear() !== current.getFullYear()) {
+      await prevMonth();
+    }
+
+    weekIso = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}-${String(prev.getDate()).padStart(2, '0')}`;
   }
 
   function secondsToHoursMinutes(totalSeconds: number) {
@@ -513,25 +555,28 @@
 
 <div id="calendarView">
   <div id="calendarControls">
-    <button class="primary-button" style="background-color: transparent;" onclick={() => selectedDate ? prevDay() : prevMonth() }>
+    <button class="primary-button" style="background-color: transparent;" onclick={() => selectedDate ? prevDay() : (isWeeklyView ? prevWeek() : prevMonth()) }>
       <img id="prevArrowIcon" src="arrow.svg" alt="prevArrow">
     </button>
-    <button class="primary-button" style="background-color: transparent;" onclick={() => selectedDate ? nextDay() : nextMonth() }>
+    <button class="primary-button" style="background-color: transparent;" onclick={() => selectedDate ? nextDay() : (isWeeklyView ? nextWeek() : nextMonth()) }>
       <img id="nextArrowIcon" src="arrow.svg" alt="nextArrow">
     </button>
-    {#if selectedDate}
-      <p id="date">{selectedDateClean}</p>
-    {:else}
-      <p id="date">{monthNames[month]} {year}</p>
-    {/if}
+    <p id="date">{selectedDate ? selectedDateClean : (isWeeklyView && weekDays.length ? `${monthNames[weekDays[0].date.getMonth()].slice(0, 3)} ${weekDays[0].date.getDate()} - ${monthNames[weekDays[weekDays.length - 1].date.getMonth()].slice(0, 3)} ${weekDays[weekDays.length - 1].date.getDate()}, ${year}` : monthYearDate)}</p>
     <button id="addEvent" class="primary-button" onclick={() => { showAddEvent = true; }}>Add event</button>
+    {#if !selectedDate}
+      <button id="weeklyView" class="primary-button" onclick={() => { if(!isWeeklyView) { isWeeklyView = true; } else { isWeeklyView = false; } }}>{!isWeeklyView ? 'Weekly view' : 'Close'}</button>
+    {/if}
     {#if selectedDate}
       <button id="closeOverlay" class="primary-button" onclick={() => { selectedDate = null; showAddEvent = false; eventInEdit = null; }}>Close</button>
     {/if}
   </div>
 
   {#if selectedDate}
-    <CalendarEventOverlay {events} {brightColors} {selectedDate} secondsToHoursMinutes={secondsToHoursMinutes} startEdit={startEdit}/>
+    <CalendarEventOverlay {events} {brightColors} {selectedDate} secondsToHoursMinutes={secondsToHoursMinutes} startEdit={startEdit} />
+  {/if}
+
+  {#if isWeeklyView}
+    <CalendarWeeklyOverlay events={events} brightColors={brightColors} days={weekDays} />
   {/if}
 
   <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
@@ -618,11 +663,6 @@
     box-shadow: unset;
     transition: transform 0.2s;
     user-select: none;
-  }
-
-  #calendarControls button#addEvent, #calendarControls button#closeOverlay {
-    max-height: 30px;
-    max-width: 80px;
   }
 
   #calendarControls button #nextArrowIcon, #calendarControls button #prevArrowIcon {
@@ -866,8 +906,10 @@
     border-radius: 8px;
   }
 
-  .eventFormButtons button, .listedEventControls button, #calendarControls button#addEvent, #calendarControls button#closeOverlay {
-    width: 80px;
+  .eventFormButtons button, .listedEventControls button, #calendarControls button#addEvent, #calendarControls button#closeOverlay, #calendarControls button#weeklyView {
+    max-width: 90px;
+    width: 100%;
+    max-height: 30px;
     height: 30px;
     border-radius: 6px;
   }
