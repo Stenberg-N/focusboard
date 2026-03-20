@@ -42,3 +42,4 @@ export type CalendarEvent = {
 }
 
 export type CalendarEventWithLane = CalendarEvent & { lane: number };
+export type CalendarEventWithLaneVertical = CalendarEvent & { lane: number, maxLanes: number };

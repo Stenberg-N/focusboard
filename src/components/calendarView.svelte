@@ -72,15 +72,23 @@
   let eventSearchInput = $state<HTMLInputElement | null>(null);
   let searchable = $state<RegExp | string>('');
   let isSearching = $state<boolean>(false);
-  let foundEvents = $derived.by(() => { if (!searchable || !isSearching) return []; return events.filter(e => e.event_name.toLowerCase().match(searchable)) });
+  let foundEvents = $derived.by(() => {
+    if (!searchable || !isSearching) return [];
+    if (selectedDate) return (eventsMap.get(selectedDate) || []).filter(e => e.event_name.toLowerCase().match(searchable));
+    if (isWeeklyView) return (events.filter(e => weekDaysMap.includes(e.event_date))).filter(e => e.event_name.toLowerCase().match(searchable));
+    else return events.filter(e => e.event_name.toLowerCase().match(searchable));
+  });
 
   let isWeeklyView = $state<boolean>(false);
+  let weeklyViewWidthMultiplier = $state<number>(1);
+  let weeklyViewWidth = $state<number>(100);
   let weekDays = $derived.by(() => {
     let index = days.findIndex(d => d.isodate === weekIso);
     if (index < 0) index = 0;
     const weekStartIndex = Math.floor(index / 7) * 7;
     return days.slice(weekStartIndex, weekStartIndex + 7);
-  })
+  });
+  let weekDaysMap = $derived.by(() => { return weekDays.map(d => d.isodate); });
 
   let {
     setStatus,
@@ -122,6 +130,10 @@
   $effect(() => {
     if (days.some(day => +day.date === +currentDate)) weekIso = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
     else weekIso = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  });
+
+  $effect(() => {
+    if (weeklyViewWidthMultiplier !== null) weeklyViewWidth = 100 * weeklyViewWidthMultiplier;
   });
 
   const getEvents = debounce(async () =>{
@@ -406,7 +418,7 @@
   }
 
   function closeEventSearch() {
-    if (eventSearchInput?.value.trim() === '' || !eventSearchInput) return;
+    if (!eventSearchInput) return;
 
     isSearching = false;
     searchable = '';
@@ -532,9 +544,9 @@
     </div>
   </div>
   {#if eventsMap.size <= 0}
-    <span style="font-size: 18px; font-weight: bold; user-select: none;">No events yet</span>
+    <span style="font-size: 18px; font-weight: bold; user-select: none; margin: 12px 11px 0 0;">No events yet</span>
   {:else}
-    <VirtualList items={searchable && foundEvents.length > 0 ? foundEvents : (selectedDate ? eventsMap.get(selectedDate) ?? [] : (Array.from(eventsMap.values()).flat() || []))} let:item>
+    <VirtualList items={searchable && foundEvents.length > 0 ? foundEvents : (isWeeklyView ? events.filter(e => weekDaysMap.includes(e.event_date)) ?? [] : (selectedDate ? eventsMap.get(selectedDate) ?? [] : (events || [])))} let:item>
       <div class="listedEvent">
         <div class="listedEventInfo" style="background-color: {item.color}; color: {brightColors.some(c => c === item.color) ? 'black' : '#f6f6f6'}">
           <div class="eventName">
@@ -564,10 +576,20 @@
     <p id="date">{selectedDate ? selectedDateClean : (isWeeklyView && weekDays.length ? `${monthNames[weekDays[0].date.getMonth()].slice(0, 3)} ${weekDays[0].date.getDate()} - ${monthNames[weekDays[weekDays.length - 1].date.getMonth()].slice(0, 3)} ${weekDays[weekDays.length - 1].date.getDate()}, ${year}` : monthYearDate)}</p>
     <button id="addEvent" class="primary-button" onclick={() => { showAddEvent = true; }}>Add event</button>
     {#if !selectedDate}
-      <button id="weeklyView" class="primary-button" onclick={() => { if(!isWeeklyView) { isWeeklyView = true; } else { isWeeklyView = false; } }}>{!isWeeklyView ? 'Weekly view' : 'Close'}</button>
+      <button id="weeklyView" class="primary-button" onclick={() => { if (!isWeeklyView) { isWeeklyView = true; } else { isWeeklyView = false; } }}>{!isWeeklyView ? 'Weekly view' : 'Close'}</button>
     {/if}
     {#if selectedDate}
       <button id="closeOverlay" class="primary-button" onclick={() => { selectedDate = null; showAddEvent = false; eventInEdit = null; }}>Close</button>
+    {/if}
+    {#if isWeeklyView}
+      <div style="display: flex; flex-direction: column; justify-content: top; height: 100%;">
+        <span style="font-weight: normal; font-size: 11px; height: 20px;">Width</span>
+        <select class="primary-button" style="outline: none;" bind:value={weeklyViewWidthMultiplier}>
+          <option value=1>100%</option>
+          <option value=2>200%</option>
+          <option value=3>300%</option>
+        </select>
+      </div>
     {/if}
   </div>
 
@@ -576,7 +598,7 @@
   {/if}
 
   {#if isWeeklyView}
-    <CalendarWeeklyOverlay events={events} brightColors={brightColors} days={weekDays} />
+    <CalendarWeeklyOverlay events={events} brightColors={brightColors} days={weekDays} weeklyViewWidth={weeklyViewWidth} startEdit={startEdit} />
   {/if}
 
   <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
@@ -656,7 +678,7 @@
     text-align: left;
   }
 
-  #calendarControls button {
+  #calendarControls button, #calendarControls select {
     height: 20px;
     width: 20px;
     padding: 0;
@@ -762,6 +784,10 @@
 
   :global(svelte-virtual-list-contents) {
     margin-right: 5px;
+  }
+
+  :global(svelte-virtual-list-viewport) {
+    scrollbar-gutter: stable;
   }
 
   .dayContainer .dayEvents .eventContainer {
@@ -906,12 +932,19 @@
     border-radius: 8px;
   }
 
-  .eventFormButtons button, .listedEventControls button, #calendarControls button#addEvent, #calendarControls button#closeOverlay, #calendarControls button#weeklyView {
+  .eventFormButtons button, .listedEventControls button, #calendarControls button#addEvent, #calendarControls button#closeOverlay, #calendarControls button#weeklyView, #calendarControls select {
     max-width: 90px;
     width: 100%;
     max-height: 30px;
     height: 30px;
     border-radius: 6px;
+  }
+
+  #calendarControls select:hover {
+    transform: none;
+  }
+  #calendarControls select option {
+    background-color: #222;
   }
 
   #addEventInfo, #editEventInfo {

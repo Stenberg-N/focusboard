@@ -41,10 +41,10 @@
     return ((end - start) / TOTAL_SECONDS) * 100;
   }
 
-  function assignLanes(events: CalendarEvent[]) {
+  function assignLanes(events: CalendarEvent[]): CalendarEventWithLane[] {
     if (!events.length) return [];
 
-    const lanes = [];
+    const lanes: CalendarEvent[][] = [];
 
     for (const event of events) {
       let placed = false;
