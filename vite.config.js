@@ -29,7 +29,24 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
     fs: {
-      allow: ["static/up-arrow.svg", "static/down-arrow.svg", "static/note.svg", "static/clock.svg"]
+      allow: [
+        "static/arrow.svg",
+        "static/boldtext.svg",
+        "static/calendar.svg",
+        "static/cancel.svg",
+        "static/clock.svg",
+        "static/close.svg",
+        "static/drag-handle.svg",
+        "static/edit-pencil.svg",
+        "static/home.svg",
+        "static/italic.svg",
+        "static/note.svg",
+        "static/save.svg",
+        "static/search.svg",
+        "static/trash-can.svg",
+        "static/underline.svg",
+        "static/zoom.svg",
+      ]
     },
   },
 }));
