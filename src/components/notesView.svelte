@@ -560,9 +560,8 @@
 
 <div id="notesView" style="height: 100%; width: 100%;">
   <div id="menuBar">
-    <h2>Notes</h2>
     <div id="notesMenuBarControls">
-      <div style="margin-left: 10px; min-width: 70px;">
+      <div style="min-width: 70px;">
         <span>Height</span>
         <select bind:value={noteHeightMultiplier} style="margin: 0;">
           <option value="smaller">Normal</option>
@@ -708,16 +707,9 @@
   display: flex; 
   flex-direction: row;
   height: 70px;
-  margin-left: 10px;
+  margin-left: 16px;
   background-color: rgba(15,15,15,0.8);
   backdrop-filter: blur(20px);
-}
-
-#menuBar h2 {
-  width: 70px;
-  margin-left: 15px;
-  text-align: left;
-  user-select: none;
 }
 
 #notesMenuBarControls {

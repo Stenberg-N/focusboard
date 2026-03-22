@@ -6,6 +6,7 @@
   import { fly } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
 
+  import Home from '../components/Home.svelte';
   import LoaderOverlay from '../components/loaderOverlay.svelte';
   import NotesView from '../components/notesView.svelte';
   import TimerView from '../components/timerView.svelte';
@@ -167,7 +168,7 @@
     {:else if currentView === 'notesView'}
       <NotesView setStore={setStore} {store} setCurrentTabId={setCurrentTabId} {currentTabId} setCurrentTabName={setCurrentTabName} {currentTabName} setStatus={(msg) => (statusBar.textContent = msg)} bind:noteHeightMultiplier bind:noteColumns bind:noteGap />
     {:else}
-      <div>Home</div>
+      <Home setStatus={(msg) => (statusBar.textContent = msg)}/>
     {/if}
   </div>
 

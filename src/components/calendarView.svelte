@@ -29,7 +29,7 @@
   let selectedDate = $state<string | null>(null);
   let selectedDateClean = $state<string | null>(null);
   let monthYearDate = $derived(`${monthNames[month]} ${year}`);
-  let yearMonth = $derived.by(() => `${String(year)}-${String(Number(month+1))}`);
+  let yearMonth = $derived.by(() => `${String(year)}-${String(Number(month+1)).padStart(2, '0')}`);
 
   let events = $state<CalendarEvent[]>([]);
   let eventsMap = $derived.by(() => {
@@ -497,11 +497,11 @@
       </div>
     {/if}
 
-    {#if eventInEdit}
+    {#if eventInEdit && displayEventName}
       <div id="editEventContainer" class:moved={showAddEvent} role="button" tabindex="0" style="max-height: 348px;" onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); updateEvent(); } if (e.key === 'Escape') { e.preventDefault(); cancelEventUpdate(); }}}>
         <OverlayScrollbarsComponent options={{ scrollbars: {autoHide: 'move' as const, autoHideDelay: 800, theme: 'os-theme-dark'}, overflow: { x: "hidden" } }}>
-          <h3>
-            Edit event:<br><span style="color: {eventInEdit.color}">{displayEventName}</span>
+          <h3 id="editEventHeader">
+            Edit event:<br><span class:sliding={displayEventName.length > 50} style="color: {eventInEdit.color}">{displayEventName}</span>
           </h3>
           <div id="editEventInfo">
             <div id="editEventNameContainer">
@@ -818,7 +818,18 @@
     font-size: 14px;
   }
 
-  .eventName p.sliding:hover {
+  #editEventHeader {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  #editEventHeader span {
+    max-width: 100%;
+  }
+
+  .eventName p.sliding:hover, #editEventHeader span.sliding:hover {
     animation: slideText 3s linear infinite;
   }
 
