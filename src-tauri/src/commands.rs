@@ -502,31 +502,23 @@ pub async fn insert_event(
 #[tauri::command]
 pub async fn get_events(
     pool: State<'_, SqlitePool>,
-    year_month: Option<String>,
+    year_month: String,
+    onwards: Option<bool>,
 ) -> Result<Vec<CalendarEvent>, String> {
-    let mut query = r#"
-        SELECT * FROM events
-    "#.to_string();
+    let query = if onwards.unwrap_or(false) {
+        "SELECT * FROM events WHERE year_month >= ? ORDER BY year_month, event_start ASC"
+    } else {
+        "SELECT * FROM events WHERE year_month = ? ORDER BY event_start ASC"
+    };
 
-    if let Some(ref _ym) = year_month {
-        query.push_str(" WHERE year_month = ?");
-    }
-
-    query.push_str(" ORDER BY event_start ASC");
-
-    let mut query_as = query_as::<_, CalendarEvent>(&query);
-
-    if let Some(_ym) = year_month {
-        query_as = query_as.bind(_ym);
-    }
-
-    let events = query_as
-    .fetch_all(&*pool)
-    .await
-    .map_err(|e| {
-        error!("Failed to retrieve events: {:#}", e);
-        e.to_string()
-    })?;
+    let events = query_as::<_, CalendarEvent>(query)
+        .bind(year_month)
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| {
+            error!("Failed to retrieve events: {:#}", e);
+            e.to_string()
+        })?;
 
     Ok(events)
 }

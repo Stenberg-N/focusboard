@@ -11,6 +11,7 @@
 
   const monthAbbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const today = new Date();
+  const yearMonth = $derived.by(() => `${String(today.getFullYear())}-${String(today.getMonth() + 1).padStart(2, '0')}`);
   let upcomingEventsRange = $state<number>(7);
 
   let calendarEvents = $state<CalendarEvent[]>([]);
@@ -56,7 +57,7 @@
 
   async function getCalendarEvents() {
     try {
-      const data = await invoke<CalendarEvent[]>('get_events');
+      const data = await invoke<CalendarEvent[]>('get_events', { yearMonth: yearMonth, onwards: true });
       calendarEvents = data;
 
       calcNextWeekDays();

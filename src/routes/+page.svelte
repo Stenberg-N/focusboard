@@ -154,7 +154,7 @@
 <div style="position: fixed; inset: 0; overflow: hidden;">
   <div id="navigationBar">
     {#each views as view}
-      <button class="primary-button" class:selected={currentView === view.name} onclick={() => currentView = view.name}>
+      <button class="primary-button" style="outline: none;" class:selected={currentView === view.name} onclick={() => currentView = view.name}>
         <img class="navigationIcons" src={view.src} alt="icon">
       </button>
     {/each}
