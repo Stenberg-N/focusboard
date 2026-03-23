@@ -207,6 +207,7 @@
   width: 100%;
   gap: 10px;
   padding: 15px;
+  border-right: 1px solid #444;
 }
 
 #navigationBar button {
@@ -226,7 +227,6 @@
   display: flex;
   width: calc(100vw - 85px);
   height: calc(100% - 20px);
-  border-left: 1px solid #444;
 }
 
 #statusBar {

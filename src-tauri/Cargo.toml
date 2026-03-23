@@ -1,6 +1,6 @@
 [package]
 name = "focusboard"
-version = "0.7.0"
+version = "0.7.1"
 description = "A Tauri App"
 authors = ["Stenberg-N"]
 edition = "2021"
@@ -24,3 +24,6 @@ colored = "3.0.0"
 dirs = "6.0.0"
 time = "0.3.44"
 tauri-plugin-store = "2"
+
+[profile.release]
+strip = false
