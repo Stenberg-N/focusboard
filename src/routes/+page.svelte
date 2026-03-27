@@ -116,12 +116,11 @@
 
       if (update === null) {
         console.log('No updates available');
-        statusBar.textContent = "No updates available";
         return;
       } else {
         const yes = await ask(
-          `Update to ${update.version} is available!\n\nRelease notes:\n${update.body || 'No notes provided'}`,
-          { title: 'Update available', kind: 'info', okLabel: 'Update now', cancelLabel: 'Later' }
+          `Update ${update.version} is available!\n\nRelease notes:\n${update.body || 'No notes provided'}`,
+          { title: 'Update available', kind: 'info', okLabel: 'Update now', cancelLabel: 'Not now' }
         );
 
         if (yes) {
@@ -131,7 +130,7 @@
       }
     } catch (error) {
       console.error('Update check failed:', error);
-      statusBar.textContent = 'Failed to check for updates. Please try again later.';
+      statusBar.textContent = `An error was encountered during a check for updates: ${error}`;
     }
   }
 
