@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{async_runtime, Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_updater;
+use tauri_plugin_dialog;
 
 #[async_std::main]
 async fn main() {
@@ -20,6 +21,7 @@ async fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
