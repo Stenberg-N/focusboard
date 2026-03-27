@@ -29,9 +29,8 @@ Primarily a note taking app, but also implements a calendar and a timer. Still v
 ### App installer
 
 1. Go to [releases](https://github.com/Stenberg-N/focusboard/releases)
-2. Download the zip file.
-3. Extract it.
-4. Launch.
+2. Download the setup executable file. **Note!** **NOT** the one ending with .sig!
+3. Install and launch.
 
 ### Repository
 You need to install Rust. You can do that [here](https://rustup.rs/)<br>
