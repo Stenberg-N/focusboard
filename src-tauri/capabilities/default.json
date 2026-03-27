@@ -8,6 +8,10 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "updater:allow-check",
+    "updater:allow-download-and-install",
+    "dialog:default",
+    "process:allow-restart",
     {
       "identifier": "opener:allow-open-path",
       "allow": [

@@ -12,12 +12,14 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{async_runtime, Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind};
+use tauri_plugin_updater;
 
 #[async_std::main]
 async fn main() {
     let context = tauri::generate_context!();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()

@@ -5,6 +5,9 @@
   import type { Store } from '@tauri-apps/plugin-store';
   import { fly } from 'svelte/transition';
   import { cubicInOut } from 'svelte/easing';
+  import { check } from '@tauri-apps/plugin-updater';
+  import { ask } from '@tauri-apps/plugin-dialog';
+  import { relaunch } from '@tauri-apps/plugin-process';
 
   import Home from '../components/Home.svelte';
   import LoaderOverlay from '../components/loaderOverlay.svelte';
@@ -75,6 +78,8 @@
     void (async () => {
       statusBar.textContent = "App setup complete";
 
+      checkForUpdates();
+
       updateFromTimer();
       const currentlyRunningTimer = setInterval(updateFromTimer, 1000);
       return () => clearInterval(currentlyRunningTimer);
@@ -104,6 +109,31 @@
       else timerNotifBottom = 25;
     }
   })
+
+  async function checkForUpdates() {
+    try {
+      const update = await check();
+
+      if (update === null) {
+        console.log('No updates available');
+        statusBar.textContent = "No updates available";
+        return;
+      } else {
+        const yes = await ask(
+          `Update to ${update.version} is available!\n\nRelease notes:\n${update.body || 'No notes provided'}`,
+          { title: 'Update available', kind: 'info', okLabel: 'Update now', cancelLabel: 'Later' }
+        );
+
+        if (yes) {
+          await update.downloadAndInstall();
+          await relaunch();
+        }
+      }
+    } catch (error) {
+      console.error('Update check failed:', error);
+      statusBar.textContent = 'Failed to check for updates. Please try again later.';
+    }
+  }
 
   function updateFromTimer() {
     const stored = localStorage.getItem('runningTimer');
