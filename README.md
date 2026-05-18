@@ -3,6 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](https://opensource.org/licenses/MIT)
 [![Latest Release](https://img.shields.io/github/v/release/Stenberg-N/focusboard?label=Latest)](https://github.com/Stenberg-N/focusboard/releases)
 
+### This project is now included in [FinRadar](https://github.com/Stenberg-N/fin-radar), and will therefore not be updated in the near future.
+
 Primarily a note taking app, but also implements a calendar and a timer. Still very much lacking in many features. Plan is to add a local, small AI model that is completely optional to make summarizations from texts, e.g. pick important dates from an email.
 
 ## Screenshots
